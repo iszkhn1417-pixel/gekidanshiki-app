@@ -10,7 +10,6 @@
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Firebase設定（ご提示いただいた情報）
         const firebaseConfig = {
             apiKey: "AIzaSyB9OS_mGy9_4HDjw96Lm5e8jFNnc521NZs",
             authDomain: "my-drama-app-5ecbb.firebaseapp.com",
@@ -20,13 +19,11 @@
             appId: "1:1084781881966:web:bd7f192d45af26e724d47f"
         };
 
-        // 初期化
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        // グローバル公開用
         window.appAuth = auth;
         window.appDb = db;
         window.appProvider = provider;
@@ -40,7 +37,6 @@
         window.deleteDoc = deleteDoc;
         window.getDoc = getDoc;
 
-        // 認証状態の監視
         onAuthStateChanged(auth, async (user) => {
             const loginOverlay = document.getElementById('login-overlay');
             const userNameSpan = document.getElementById('user-name');
@@ -73,13 +69,11 @@
         .container { padding: 15px; max-width: 600px; margin: 0 auto; }
         .hidden { display: none !important; }
         
-        /* ログインオーバーレイ */
         #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(27, 38, 59, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; color: white; text-align: center; padding: 20px; }
         #login-overlay h1 { margin-bottom: 15px; font-size: 1.5rem; color: var(--accent-color); }
         #login-overlay p { margin-bottom: 25px; font-size: 0.95rem; opacity: 0.8; }
         .google-login-btn { background: white; color: #333; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 
-        /* カード・フォーム */
         .card { background: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #444; }
@@ -88,34 +82,28 @@
         button.accent { background-color: var(--accent-color); color: #1b263b; }
         button.small { padding: 6px 10px; font-size: 0.85rem; width: auto; }
         
-        /* 下バナー（タブバー） */
         .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
         .nav-item { text-align: center; font-size: 0.75rem; color: #777; cursor: pointer; flex: 1; }
         .nav-item.active { color: #1b263b; font-weight: bold; }
         .nav-item div { font-size: 1.2rem; margin-bottom: 2px; }
 
-        /* リスト・詳細 */
         .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
         .detail-box { background: #fafbfc; border-left: 4px solid var(--accent-color); padding: 12px; margin-top: 8px; font-size: 0.9rem; border-radius: 0 6px 6px 0; }
         
-        /* タグリスト */
         .item-tag-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
         .item-tag { display: flex; justify-content: space-between; align-items: center; background: #f1f2f6; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; }
         .delete-btn { background: var(--danger-color); color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; cursor: pointer; width: auto; }
 
-        /* 検索フィルター */
         .search-filters { display: flex; gap: 5px; margin-bottom: 10px; }
         .search-filters button { font-size: 0.8rem; padding: 6px; background: #e0e0e0; color: #333; font-weight: normal; }
         .search-filters button.active { background: var(--primary-color); color: white; font-weight: bold; }
 
-        /* オートコンプリート */
         .cast-input-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; position: relative; }
         .autocomplete-wrapper { position: relative; flex: 1; }
         .suggestions-box { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border-color); border-top: none; max-height: 150px; overflow-y: auto; z-index: 10; border-radius: 0 0 6px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .suggestion-item { padding: 8px 10px; font-size: 0.9rem; cursor: pointer; border-bottom: 1px solid #f1f1f1; outline: none; }
         .suggestion-item:hover, .suggestion-item:focus { background: #eef2f7; color: var(--primary-color); font-weight: bold; }
 
-        /* モーダル */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; padding: 20px; }
         .modal-content { background: #fff; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
@@ -125,7 +113,6 @@
 </head>
 <body>
 
-    <!-- ログインオーバーレイ -->
     <div id="login-overlay">
         <h1>劇団四季 観劇・キャスト管理</h1>
         <p>ご利用にはGoogleアカウントでのログインが必要です。<br>どの端末からでも同じデータにアクセスできます。</p>
@@ -156,7 +143,7 @@
                         <input type="date" id="rec-date" required>
                     </div>
                     <div class="form-group">
-                        <label>作品名</label>
+                        <label>作品名（配信の場合は先方に「【配信】」をつけてください）</label>
                         <select id="rec-work" onchange="onWorkSelected()" required></select>
                     </div>
                     <div class="form-group">
@@ -185,12 +172,12 @@
         <div id="screen-works" class="screen hidden">
             <div class="card">
                 <h3 style="color: var(--primary-color); margin-bottom: 10px;">📊 作品別 観劇サマリー</h3>
-                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">作品名をタップすると、上から3つのプレビューが表示されます。さらにタップするとすべての役名・キャスト・詳細が開きます。</p>
+                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">劇場観劇と配信視聴が別々に集計されます。タップして詳細を確認できます。</p>
                 <div id="works-summary-list"></div>
             </div>
         </div>
 
-        <!-- ================= 3. 時系列観劇歴画面 (新機能) ================= -->
+        <!-- ================= 3. 時系列観劇歴画面 ================= -->
         <div id="screen-timeline" class="screen hidden">
             <div class="card">
                 <h3 style="color: var(--primary-color); margin-bottom: 10px;">📅 時系列観劇歴</h3>
@@ -289,9 +276,8 @@
     </nav>
 
     <script>
-        // デフォルトマスターデータ等の定義（省略せずそのまま保持）
         const defaultWorks = ['アナと雪の女王', 'アラジン', 'オペラ座の怪人', 'キャッツ', 'ゴースト＆レディ', 'ノートルダムの鐘', 'バケモノの子', 'バック・トゥ・ザ・フューチャー', '美女と野獣', 'ひばり', 'マンマ・ミーア！', 'ライオンキング'];
-        const defaultTheaters = ['四季劇場「春」', '四季劇場「秋」', '電通四季劇場「海」', 'キャッツ・シアター（品川区東五反田）', 'KAAT神奈川芸術劇場', '名古屋四季劇場', '大阪四季劇場', '自由劇場（浜松町）', '有明四季劇場', '舞浜アンフィシアター'];
+        const defaultTheaters = ['四季劇場「春」', '四季劇場「秋」', '電通四季劇場「海」', 'キャッツ・シアター（品川区東五反田）', 'KAAT神奈川芸術劇場', '名古屋四季劇場', '大阪四季劇場', '自由劇場（浜松町）', '有明四季劇場', '舞浜アンフィシアター', '【配信】自宅・オンライン'];
         
         const defaultRoles = {
             'アナと雪の女王': ['エルサ', 'アナ', 'クリストフ', 'オラフ', 'ハンス', 'ウェーゼルトン', 'スヴェン', 'パビー', 'バルダ', 'オーケン', 'アグナル王', 'イドゥーナ妃', 'ヤングエルサ', 'ヤングアナ', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7'],
@@ -479,7 +465,7 @@
             { id: 168, name: '田川 光希', kana: 'たがわ みつき', birth: '', age: '', joined: '', intro: '「ライオンキング」初舞台', history: [] },
             { id: 169, name: '若松 小百合', kana: 'わかまつ さゆり', birth: '', age: '', joined: '2012年', intro: '「人間になりたがった猫」初舞台', history: [] },
             { id: 170, name: '沙耶', kana: '', birth: '', age: '', joined: '', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 171, name: '古木 瞳', kana: 'ふるき ひとみ', birth: '', age: '', joined: '', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
+            { id: 171, name: '古木 瞳', kana: 'ふるき ひとみ', birth: '', age: '', joined: '「魔法をすてたマジョリン」初舞台', history: [] },
             { id: 172, name: '吉村 侑姫', kana: 'よしむら ゆうひ', birth: '', age: '', joined: '', intro: '「はだかの王様」初舞台', history: [] },
             { id: 173, name: '森川 温子', kana: 'もりかわ あつこ', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
             { id: 174, name: '阿久津 陽一郎', kana: 'あくつ よういちろう', birth: '1971/04/21', age: '', joined: '1994年研究所', intro: '「ライオンキング」シンバ等', history: [] },
@@ -734,11 +720,11 @@
             { id: 'rec_10', date: '2024-05-10', work: 'オペラ座の怪人', theater: 'KAAT神奈川芸術劇場', companion: '', memo: 'オペラ座の怪人：清水 大星\nクリスティーヌ・ダーエ：海沼 千明\nラウル・シャニュイ子爵：岸 佳宏\nカルロッタ・ジュディチェルリ：河村 彩\nメグ・ジリー：森本 愛莉\nマダム・ジリー：秋本 みな子' },
             { id: 'rec_11', date: '2020-08-30', work: 'キャッツ', theater: 'キャッツ・シアター（品川区東五反田）', companion: '', memo: 'グリザベラ：織笠 里佳子\nオールドデュトロノミー：飯村 泰志\nジェリーロラム=グリドルボーン：小野 実咲季\nアスパラガス=グロールタイガー：正木 棟馬\nマンカストラップ：加藤 迪' },
             { id: 'rec_12', date: '2021-06-13', work: 'キャッツ', theater: 'キャッツ・シアター（品川区東五反田）', companion: '', memo: 'グリザベラ：金原 美喜\nオールドデュトロノミー：橋元 聖地\nジェリーロラム=グリドルボーン：奥平 光紀\nアスパラガス=グロールタイガー：正木 棟馬\nマンカストラップ：金本 泰潤' },
-            { id: 'rec_13', date: '2024-11-11', work: 'ゴースト&レディ', theater: '【配信】四季劇場「秋」', companion: '', memo: 'フロー：谷原 志音\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：野中 万寿夫\nデオン・ド・ボーモン：岡村 美南' },
-            { id: 'rec_14', date: '2025-07-04', work: 'ゴースト&レディ', theater: '名古屋四季劇場', companion: '', memo: 'フロー：谷原 志音\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：岡村 美南' },
-            { id: 'rec_15', date: '2025-08-31', work: 'ゴースト&レディ', theater: '【配信】名古屋四季劇場', companion: '', memo: 'フロー：谷原 志音\nグレイ：加藤 迪\nジョン・ホール軍医長官：瀧山 久志\nデオン・ド・ボーモン：宮田 愛' },
-            { id: 'rec_16', date: '2026-05-09', work: 'ゴースト&レディ', theater: '大阪四季劇場', companion: '', memo: 'フロー：町島 智子\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：宮田 愛' },
-            { id: 'rec_17', date: '2026-05-17', work: 'ゴースト&レディ', theater: '【配信】大阪四季劇場', companion: '', memo: 'フロー：町島 智子\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：宮田 愛' },
+            { id: 'rec_13', date: '2024-11-11', work: '【配信】ゴースト＆レディ', theater: '【配信】自宅・オンライン', companion: '', memo: 'フロー：谷原 志音\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：野中 万寿夫\nデオン・ド・ボーモン：岡村 美南' },
+            { id: 'rec_14', date: '2025-07-04', work: 'ゴースト＆レディ', theater: '名古屋四季劇場', companion: '', memo: 'フロー：谷原 志音\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：岡村 美南' },
+            { id: 'rec_15', date: '2025-08-31', work: '【配信】ゴースト＆レディ', theater: '【配信】自宅・オンライン', companion: '', memo: 'フロー：谷原 志音\nグレイ：加藤 迪\nジョン・ホール軍医長官：瀧山 久志\nデオン・ド・ボーモン：宮田 愛' },
+            { id: 'rec_16', date: '2026-05-09', work: 'ゴースト＆レディ', theater: '大阪四季劇場', companion: '', memo: 'フロー：町島 智子\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：宮田 愛' },
+            { id: 'rec_17', date: '2026-05-17', work: '【配信】ゴースト＆レディ', theater: '【配信】自宅・オンライン', companion: '', memo: 'フロー：町島 智子\nグレイ：萩原 隆匡\nジョン・ホール軍医長官：芝 清道\nデオン・ド・ボーモン：宮田 愛' },
             { id: 'rec_18', date: '2023-07-15', work: 'ノートルダムの鐘', theater: '四季劇場「秋」', companion: '', memo: 'カジモド：田中 彰孝\nフロロー：芝 清道\nエスメラルダ：山崎 遥香\nフィーバス：加藤 迪\nクロパン：白石 拓也' },
             { id: 'rec_19', date: '2023-02-14', work: 'バケモノの子', theater: '四季劇場「秋」', companion: '', memo: '熊徹：田中 彰孝\n蓮/九太（青年）：立崇 なおと\n猪王山：田島 亨祐\n一郎彦（青年）：菊池 俊\n多々良：韓 盛治\n百秋坊：味方 隆司' },
             { id: 'rec_20', date: '2025-10-24', work: 'バック・トゥ・ザ・フューチャー', theater: '四季劇場「秋」', companion: '', memo: 'マーティ・マクフライ：立崇 なおと\nドク・ブラウン：阿久津 陽一郎\nロレイン・ベインズ：海沼 千明\nジョージ・マクフライ：塚田 拓也' },
@@ -757,7 +743,6 @@
         let recordsData = [];
         let currentSearchFilter = 'all';
 
-        // ログイン処理
         async function loginWithGoogle() {
             try {
                 await window.signInWithPopup(window.appAuth, window.appProvider);
@@ -771,7 +756,6 @@
             await window.signOut(window.appAuth);
         }
 
-        // Firestoreからクラウドデータを読み込む
         async function loadCloudData() {
             const user = window.appAuth.currentUser;
             if (!user) return;
@@ -858,12 +842,23 @@
                         const roleName = parts[0].trim();
                         const castName = parts[1].trim();
                         let foundCast = castsData.find(c => c.name === castName);
-                        if (foundCast) {
-                            if (!foundCast.history) foundCast.history = [];
-                            const exists = foundCast.history.some(h => h.date === rec.date && h.work === rec.work && h.role === roleName);
-                            if (!exists) {
-                                foundCast.history.push({ date: rec.date, work: rec.work, role: roleName });
-                            }
+                        if (!foundCast) {
+                            foundCast = {
+                                id: castsData.length > 0 ? Math.max(...castsData.map(c => Number(c.id) || 0)) + 1 : 1,
+                                name: castName,
+                                kana: '-',
+                                birth: '',
+                                age: '',
+                                joined: '',
+                                intro: '自動連動キャスト',
+                                history: []
+                            };
+                            castsData.push(foundCast);
+                        }
+                        if (!foundCast.history) foundCast.history = [];
+                        const exists = foundCast.history.some(h => h.date === rec.date && h.work === rec.work && h.role === roleName);
+                        if (!exists) {
+                            foundCast.history.push({ date: rec.date, work: rec.work, role: roleName });
                         }
                     }
                 });
@@ -875,7 +870,14 @@
             document.getElementById(`screen-${screenName}`).classList.remove('hidden');
             
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            if(element) element.classList.add('active');
+            if(element) {
+                element.classList.add('active');
+            } else {
+                // タブ要素を自動検知してアクティブにする
+                const mapping = { home: 0, works: 1, timeline: 2, casts: 3, settings: 4 };
+                const navItems = document.querySelectorAll('.nav-item');
+                if (navItems[mapping[screenName]]) navItems[mapping[screenName]].classList.add('active');
+            }
 
             const titles = { home: 'ホーム / 登録', works: '作品一覧', timeline: '時系列観劇歴', casts: 'キャスト検索・詳細編集', settings: '設定' };
             document.getElementById('header-title').innerText = titles[screenName];
@@ -893,7 +895,7 @@
             rebuildCastHistory();
 
             const workSelect = document.getElementById('rec-work');
-            workSelect.innerHTML = `<option value="" disabled selected>選択してください</option>` + masterWorks.map(w => `<option value="${w}">${w}</option>`).join('');
+            workSelect.innerHTML = `<option value="" disabled selected>選択してください</option>` + masterWorks.map(w => `<option value="${w}">${w}</option>` + `<option value="【配信】${w}">【配信】${w}</option>`).join('');
 
             const theaterSelect = document.getElementById('rec-theater');
             theaterSelect.innerHTML = `<option value="" disabled selected>選択してください</option>` + masterTheaters.map(t => `<option value="${t}">${t}</option>`).join('');
@@ -907,10 +909,12 @@
         }
 
         function onWorkSelected(presetCasts = {}) {
-            const workName = document.getElementById('rec-work').value;
+            let workName = document.getElementById('rec-work').value;
+            // 【配信】がついている場合はマスターロール参照用に外す
+            const cleanWorkName = workName.replace(/^【配信】/, '');
             const container = document.getElementById('dynamic-cast-inputs');
             
-            const roles = masterRoles[workName] || [];
+            const roles = masterRoles[cleanWorkName] || [];
             if(roles.length === 0) {
                 container.innerHTML = `<p style="color: #777; font-size: 0.85rem;">この作品の役名が「設定」に登録されていません。</p>`;
                 return;
@@ -1090,30 +1094,67 @@
             initApp();
         }
 
-        // ================= 作品一覧 & 詳細ポップアップ機能 =================
+        // ================= 作品一覧 & 詳細ポップアップ機能（配信別集計対応） =================
         function renderWorksSummary() {
             const container = document.getElementById('works-summary-list');
-            container.innerHTML = masterWorks.map(work => {
-                const count = recordsData.filter(r => r.work === work).length;
-                return `<div class="list-item" onclick="openWorkDetailModal('${work}')" style="cursor: pointer;">
-                    <span><strong>🎭 ${work}</strong></span>
-                    <span style="background: #eef2f7; color: #1b263b; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold;">観劇回数: ${count}回</span>
-                </div>`;
-            }).join('');
+            
+            // 通常の作品と配信作品を分けて集計
+            const summaryMap = {};
+            masterWorks.forEach(w => {
+                summaryMap[w] = { theaterCount: 0, streamCount: 0 };
+            });
+
+            recordsData.forEach(r => {
+                const isStream = r.work.startsWith('【配信】') || r.theater.includes('配信');
+                const cleanName = r.work.replace(/^【配信】/, '');
+                
+                if (!summaryMap[cleanName]) {
+                    summaryMap[cleanName] = { theaterCount: 0, streamCount: 0 };
+                }
+
+                if (isStream) {
+                    summaryMap[cleanName].streamCount++;
+                } else {
+                    summaryMap[cleanName].theaterCount++;
+                }
+            });
+
+            let html = '';
+            for (const [workName, counts] of Object.entries(summaryMap)) {
+                if (counts.theaterCount > 0) {
+                    html += `<div class="list-item" onclick="openWorkDetailModal('${workName}', false)" style="cursor: pointer;">
+                        <span><strong>🎭 ${workName}</strong></span>
+                        <span style="background: #eef2f7; color: #1b263b; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold;">観劇回数: ${counts.theaterCount}回</span>
+                    </div>`;
+                }
+                if (counts.streamCount > 0) {
+                    html += `<div class="list-item" onclick="openWorkDetailModal('${workName}', true)" style="cursor: pointer; background: #fdfbf7; border-left: 4px solid var(--accent-color);">
+                        <span><strong>📺 【配信】${workName}</strong></span>
+                        <span style="background: #fdf3c7; color: #b45309; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold;">配信視聴回数: ${counts.streamCount}回</span>
+                    </div>`;
+                }
+            }
+
+            container.innerHTML = html || '<p style="font-size:0.9rem; color:#777;">記録がまだありません。</p>';
         }
 
-        function openWorkDetailModal(workName) {
-            const matchedRecords = recordsData.filter(r => r.work === workName).sort((a,b) => new Date(b.date) - new Date(a.date));
-            document.getElementById('modalTitle').innerText = `「${workName}」の観劇詳細`;
+        function openWorkDetailModal(workName, isStreamTarget) {
+            const matchedRecords = recordsData.filter(r => {
+                const isStream = r.work.startsWith('【配信】') || r.theater.includes('配信');
+                const cleanName = r.work.replace(/^【配信】/, '');
+                return cleanName === workName && isStream === isStreamTarget;
+            }).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            document.getElementById('modalTitle').innerText = (isStreamTarget ? `【配信】${workName}` : `「${workName}」`) + ' の詳細';
             const modalBody = document.getElementById('modalBody');
 
             if(matchedRecords.length === 0) {
-                modalBody.innerHTML = `<p style="font-size: 0.9rem; color: #777;">この作品の観劇記録はまだありません。</p>`;
+                modalBody.innerHTML = `<p style="font-size: 0.9rem; color: #777;">該当する記録はまだありません。</p>`;
                 document.getElementById('detailModal').style.display = 'flex';
                 return;
             }
 
-            let html = `<p style="margin-bottom:12px; font-size:0.9rem; color:#555;">総観劇回数: <strong>${matchedRecords.length}回</strong></p>`;
+            let html = `<p style="margin-bottom:12px; font-size:0.9rem; color:#555;">${isStreamTarget ? '配信視聴回数' : '総観劇回数'}: <strong>${matchedRecords.length}回</strong></p>`;
 
             matchedRecords.forEach((r, idx) => {
                 let previewCasts = [];
@@ -1121,10 +1162,9 @@
                     previewCasts = r.memo.split('\n').filter(Boolean);
                 }
 
-                // 上から3つだけプレビュー表示し、詳細はタップで全件展開
                 html += `
                     <div style="background: #fafbfc; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; cursor: pointer;" onclick="toggleFullWorkDetail(this)">
-                        <div style="font-size: 0.85rem; color: var(--primary-color); font-weight: bold;">📅 第${matchedRecords.length - idx}回観劇日: ${r.date} ／ 劇場: ${r.theater} ${r.companion ? '／ 同行者: ' + r.companion : ''}</div>
+                        <div style="font-size: 0.85rem; color: var(--primary-color); font-weight: bold;">📅 日付: ${r.date} ／ 劇場・媒体: ${r.theater} ${r.companion ? '／ 同行者: ' + r.companion : ''}</div>
                         <div style="margin-top: 6px; font-size: 0.9rem;">
                             <strong>主な役・キャスト (上から3件):</strong>
                             <div style="margin-top: 4px; color: #444;">
@@ -1141,8 +1181,7 @@
                                 const actorName = parts[1] ? parts[1].trim() : '';
                                 const castObj = castsData.find(c => c.name === actorName) || {};
                                 
-                                // 自分が今まで見た作品一覧
-                                const pastSameWorks = recordsData.filter(rec => rec.work === workName).map(rec => `${rec.date}(${rec.theater})`).join(', ');
+                                const pastSameWorks = recordsData.filter(rec => rec.work.replace(/^【配信】/, '') === workName).map(rec => `${rec.date}(${rec.theater})`).join(', ');
 
                                 return `
                                     <div style="background: white; border: 1px solid #eee; padding: 8px; border-radius: 6px; margin-bottom: 6px;">
@@ -1153,7 +1192,7 @@
                                             <strong>出演作品・プログラム紹介:</strong><br>
                                             <span class="clickable-detail" onclick="event.stopPropagation(); alert('${(castObj.intro || '紹介文なし').replace(/'/g, "\\'")}')">【紹介文の全体を見る】</span>
                                         </div>
-                                        <div style="font-size:0.8rem; color:#888; margin-top: 4px;">過去の同作品観劇歴: ${pastSameWorks}</div>
+                                        <div style="font-size:0.8rem; color:#888; margin-top: 4px;">過去の同作品歴: ${pastSameWorks}</div>
                                     </div>
                                 `;
                             }).join('')}
@@ -1173,7 +1212,7 @@
             }
         }
 
-        // ================= 時系列観劇歴機能 (新タブ) =================
+        // ================= 時系列観劇歴機能（編集後タブにとどまる対応） =================
         function renderTimelineList() {
             const container = document.getElementById('timeline-list-container');
             if (recordsData.length === 0) {
@@ -1181,25 +1220,28 @@
                 return;
             }
 
-            // 観劇日の新しい順にソート
             const sorted = [...recordsData].sort((a,b) => new Date(b.date) - new Date(a.date));
             const ascendingForCount = [...recordsData].sort((a,b) => new Date(a.date) - new Date(b.date));
 
             container.innerHTML = sorted.map(r => {
-                // 通算回数の計算
-                const sameShowList = ascendingForCount.filter(rec => rec.work === r.work);
+                const isStream = r.work.startsWith('【配信】') || r.theater.includes('配信');
+                const cleanName = r.work.replace(/^【配信】/, '');
+
+                const sameShowList = ascendingForCount.filter(rec => {
+                    const recIsStream = rec.work.startsWith('【配信】') || rec.theater.includes('配信');
+                    return rec.work.replace(/^【配信】/, '') === cleanName && recIsStream === isStream;
+                });
                 const totalCount = sameShowList.findIndex(rec => rec.id === r.id) + 1;
 
-                // 代表キャスト3つほど
                 let repCasts = [];
                 if (r.memo) {
                     repCasts = r.memo.split('\n').filter(Boolean).slice(0, 3);
                 }
 
                 return `
-                    <div class="card" style="cursor: pointer; border-left: 4px solid var(--primary-color);" onclick="openTimelineActionModal('${r.id}', ${totalCount})">
+                    <div class="card" style="cursor: pointer; border-left: 4px solid ${isStream ? 'var(--accent-color)' : 'var(--primary-color)'};" onclick="openTimelineActionModal('${r.id}', ${totalCount})">
                         <div style="font-weight: bold; font-size: 1rem; color: var(--primary-color);">${r.date} - ${r.work}</div>
-                        <div style="font-size: 0.85rem; color: #555; margin-top: 4px;">劇場: ${r.theater} ／ 通算回数: 第${totalCount}回</div>
+                        <div style="font-size: 0.85rem; color: #555; margin-top: 4px;">劇場/媒体: ${r.theater} ／ ${isStream ? '配信回数' : '通算回数'}: 第${totalCount}回</div>
                         <div style="font-size: 0.85rem; color: #555; margin-top: 2px;">代表キャスト: ${repCasts.join(' / ') || 'なし'}</div>
                         <div style="font-size: 0.85rem; color: #555; margin-top: 2px;">同行者: ${r.companion || 'なし'}</div>
                         <div style="text-align: right; font-size: 0.8rem; color: var(--accent-color); font-weight: bold; margin-top: 6px;">✏️ タップして編集・削除</div>
@@ -1232,10 +1274,9 @@
             document.getElementById('rec-work').value = r.work;
             document.getElementById('rec-theater').value = r.theater;
             document.getElementById('rec-companion').value = r.companion || '';
-            document.getElementById('submit-btn').innerText = '変更を保存する';
+            document.getElementById('submit-btn').innerText = '変更を保存する（時系列に戻る）';
             document.getElementById('cancel-edit-btn').classList.remove('hidden');
 
-            // キャストのプリセットを復元
             const presetCasts = {};
             if (r.memo) {
                 r.memo.split('\n').forEach(line => {
@@ -1246,6 +1287,79 @@
                 });
             }
             onWorkSelected(presetCasts);
+        }
+
+        // 保存時に編集だった場合は時系列タブにとどまるように上書き修正
+        async function saveRecord(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-record-id').value;
+            const date = document.getElementById('rec-date').value;
+            const work = document.getElementById('rec-work').value;
+            const theater = document.getElementById('rec-theater').value;
+            const companion = document.getElementById('rec-companion').value;
+
+            if(!date || !work || !theater) {
+                alert('観劇日、作品名、劇場名をすべて選択・入力してください。');
+                return;
+            }
+
+            let memoLines = [];
+            const rows = document.querySelectorAll('.cast-input-row');
+            for(const row of rows) {
+                const roleName = row.querySelector('span').innerText;
+                const castNameInput = row.querySelector('.cast-name-input').value.trim();
+                if(castNameInput) {
+                    memoLines.push(`${roleName}：${castNameInput}`);
+                    
+                    let existingCast = castsData.find(c => c.name === castNameInput);
+                    if(!existingCast) {
+                        const newCast = {
+                            id: castsData.length > 0 ? Math.max(...castsData.map(c => Number(c.id) || 0)) + 1 : 1,
+                            name: castNameInput,
+                            kana: '-',
+                            birth: '',
+                            age: '',
+                            joined: '',
+                            intro: '自動登録されたキャスト',
+                            history: []
+                        };
+                        castsData.push(newCast);
+                        await saveCastToCloud(newCast);
+                    }
+                }
+            }
+
+            const memo = memoLines.join('\n');
+            const recordId = editId ? editId : 'rec_' + Date.now();
+            const newRecord = { id: recordId, date, work, theater, companion, memo };
+
+            if (editId) {
+                const idx = recordsData.findIndex(r => r.id === editId);
+                if (idx !== -1) recordsData[idx] = newRecord;
+            } else {
+                recordsData.push(newRecord);
+            }
+            
+            await saveRecordToCloud(newRecord);
+            rebuildCastHistory();
+
+            alert(editId ? '観劇記録を更新しました！' : '観劇記録をクラウドに保存しました！');
+            
+            const wasEditing = !!editId;
+            document.getElementById('record-form').reset();
+            initApp();
+
+            // 編集元が時系列からの場合は、時系列タブに戻る
+            if (wasEditing) {
+                switchScreen('timeline');
+            } else {
+                switchScreen('works');
+            }
+        }
+
+        function cancelEdit() {
+            initApp();
+            switchScreen('timeline');
         }
 
         function confirmDeleteTimelineRecord(recordId) {
@@ -1260,7 +1374,6 @@
         async function executeDeleteRecord(recordId, deleteCastsAlso) {
             const r = recordsData.find(item => item.id === recordId);
             if (deleteCastsAlso && r && r.memo) {
-                // 関連キャストを castsData からも削除（他の記録で使われていない場合など）
                 r.memo.split('\n').forEach(line => {
                     const parts = line.split('：');
                     if(parts.length === 2) {
