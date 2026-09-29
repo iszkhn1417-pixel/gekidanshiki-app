@@ -3,1255 +3,392 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>劇団四季 観劇・キャスト管理アプリ（クラウド版）</title>
-    <!-- Firebase SDKの読み込み -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyB9OS_mGy9_4HDjw96Lm5e8jFNnc521NZs",
-            authDomain: "my-drama-app-5ecbb.firebaseapp.com",
-            projectId: "my-drama-app-5ecbb",
-            storageBucket: "my-drama-app-5ecbb.appspot.com",
-            messagingSenderId: "1084781881966",
-            appId: "1:1084781881966:web:bd7f192d45af26e724d47f"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const provider = new GoogleAuthProvider();
-
-        window.appAuth = auth;
-        window.appDb = db;
-        window.appProvider = provider;
-        window.signInWithPopup = signInWithPopup;
-        window.signOut = signOut;
-        window.GoogleAuthProvider = GoogleAuthProvider;
-        window.collection = collection;
-        window.getDocs = getDocs;
-        window.setDoc = setDoc;
-        window.doc = doc;
-        window.deleteDoc = deleteDoc;
-        window.getDoc = getDoc;
-
-        onAuthStateChanged(auth, async (user) => {
-            const loginOverlay = document.getElementById('login-overlay');
-            const userNameSpan = document.getElementById('user-name');
-
-            if (user) {
-                loginOverlay.classList.add('hidden');
-                userNameSpan.innerText = user.displayName || user.email;
-                await loadCloudData();
-                initApp();
-            } else {
-                loginOverlay.classList.remove('hidden');
-            }
-        });
-    </script>
-
+    <title>劇団四季 観劇管理アプリ</title>
     <style>
         :root {
-            --primary-color: #1b263b;
-            --accent-color: #d4af37;
-            --bg-color: #f4f6f9;
+            --primary-color: #1a365d;
+            --secondary-color: #2b6cb0;
+            --bg-color: #f7fafc;
             --card-bg: #ffffff;
-            --text-color: #333333;
-            --border-color: #dcdde1;
-            --danger-color: #e74c3c;
+            --text-color: #2d3748;
+            --border-color: #e2e8f0;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-color); padding-bottom: 70px; }
-        header { background-color: var(--primary-color); color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; border-bottom: 3px solid var(--accent-color); display: flex; justify-content: space-between; align-items: center; }
-        header span { font-size: 0.8rem; font-weight: normal; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; }
-        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
-        .hidden { display: none !important; }
-        
-        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(27, 38, 59, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; color: white; text-align: center; padding: 20px; }
-        #login-overlay h1 { margin-bottom: 15px; font-size: 1.5rem; color: var(--accent-color); }
-        #login-overlay p { margin-bottom: 25px; font-size: 0.95rem; opacity: 0.8; }
-        .google-login-btn { background: white; color: #333; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-
-        .card { background: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-        .form-group { margin-bottom: 12px; }
-        label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #444; }
-        input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; background: #fff; }
-        button { background-color: var(--primary-color); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-size: 1rem; cursor: pointer; width: 100%; font-weight: bold; }
-        button.accent { background-color: var(--accent-color); color: #1b263b; }
-        button.small { padding: 6px 10px; font-size: 0.85rem; width: auto; }
-        
-        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
-        .nav-item { text-align: center; font-size: 0.75rem; color: #777; cursor: pointer; flex: 1; }
-        .nav-item.active { color: #1b263b; font-weight: bold; }
-        .nav-item div { font-size: 1.2rem; margin-bottom: 2px; }
-
-        .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-        .detail-box { background: #fafbfc; border-left: 4px solid var(--accent-color); padding: 12px; margin-top: 8px; font-size: 0.9rem; border-radius: 0 6px 6px 0; }
-        
-        .item-tag-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-        .item-tag { display: flex; justify-content: space-between; align-items: center; background: #f1f2f6; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; }
-        .delete-btn { background: var(--danger-color); color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; cursor: pointer; width: auto; }
-
-        .search-filters { display: flex; gap: 5px; margin-bottom: 10px; }
-        .search-filters button { font-size: 0.8rem; padding: 6px; background: #e0e0e0; color: #333; font-weight: normal; }
-        .search-filters button.active { background: var(--primary-color); color: white; font-weight: bold; }
-
-        .cast-input-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; position: relative; }
-        .autocomplete-wrapper { position: relative; flex: 1; }
-        .suggestions-box { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border-color); border-top: none; max-height: 150px; overflow-y: auto; z-index: 10; border-radius: 0 0 6px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .suggestion-item { padding: 8px 10px; font-size: 0.9rem; cursor: pointer; border-bottom: 1px solid #f1f1f1; outline: none; }
-        .suggestion-item:hover, .suggestion-item:focus { background: #eef2f7; color: var(--primary-color); font-weight: bold; }
-
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; padding: 20px; }
-        .modal-content { background: #fff; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
-        .modal-close { background: none; border: none; font-size: 1.5rem; color: #777; cursor: pointer; width: auto; padding: 0; }
-        .clickable-detail { color: var(--primary-color); text-decoration: underline; cursor: pointer; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 16px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.4rem;
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: var(--secondary-color);
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            font-size: 1rem;
+        }
+        button:hover {
+            background-color: var(--primary-color);
+        }
+        .history-item {
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 0;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .history-header {
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 1.05rem;
+            margin-bottom: 4px;
+        }
+        .history-details {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .cast-list-preview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 0.85rem;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .cast-item {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cast-input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+            align-items: center;
+        }
+        .tab-menu {
+            display: flex;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: none;
+            border: none;
+            font-weight: bold;
+            color: #718096;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            color: var(--secondary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
+<div class="container">
+    <h1>劇団四季 観劇管理アプリ</h1>
 
-    <div id="login-overlay">
-        <h1>劇団四季 観劇・キャスト管理</h1>
-        <p>ご利用にはGoogleアカウントでのログインが必要です。<br>どの端末からでも同じデータにアクセスできます。</p>
-        <button class="google-login-btn" onclick="loginWithGoogle()">
-            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.46-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-            Googleアカウントでログイン
-        </button>
+    <div class="tab-menu">
+        <button class="tab-btn active" onclick="switchTab('list')">観劇履歴一覧</button>
+        <button class="tab-btn" onclick="switchTab('add')">新規登録</button>
     </div>
 
-    <header>
-        <div id="header-title">ホーム / 登録</div>
-        <div>
-            <span id="user-name"></span>
-            <button onclick="logout()" class="small" style="background: #c0392b; margin-left: 8px; padding: 4px 8px; font-size: 0.75rem;">ログアウト</button>
-        </div>
-    </header>
-
-    <div class="container">
-        
-        <!-- ================= 1. ホーム・登録画面 ================= -->
-        <div id="screen-home" class="screen">
-            <div class="card">
-                <h3 style="margin-bottom: 15px; color: var(--primary-color);">🎭 観劇記録の新規登録</h3>
-                <form id="record-form" onsubmit="saveRecord(event)">
-                    <input type="hidden" id="edit-record-id" value="">
-                    <div class="form-group">
-                        <label>観劇日</label>
-                        <input type="date" id="rec-date" required>
-                    </div>
-                    <div class="form-group">
-                        <label>作品名（配信の場合は先頭に「【配信】」をつけてください）</label>
-                        <select id="rec-work" onchange="onWorkSelected()" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label>劇場名</label>
-                        <select id="rec-theater" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label>同行者</label>
-                        <input type="text" id="rec-companion" placeholder="例：友人、家族など">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>役名・キャスト入力（予測変換・キーボード対応）</label>
-                        <div id="dynamic-cast-inputs" style="background: #fafafa; padding: 10px; border-radius: 6px; border: 1px solid #eee; margin-top: 5px;">
-                            <p style="color: #777; font-size: 0.85rem;">作品を選択すると、登録された役名がここに表示されます。</p>
-                        </div>
-                    </div>
-
-                    <button type="submit" id="submit-btn" class="accent">この内容で登録する</button>
-                    <button type="button" id="cancel-edit-btn" class="hidden" onclick="cancelEdit()" style="background:#7f8c8d; margin-top:8px;">編集をキャンセル</button>
-                </form>
+    <!-- 履歴一覧タブ -->
+    <div id="tab-list" class="tab-content active">
+        <div class="card">
+            <div class="form-group">
+                <label for="filter-work">作品で絞り込み</label>
+                <select id="filter-work" onchange="renderHistory()">
+                    <option value="">すべての作品</option>
+                </select>
             </div>
         </div>
-
-        <!-- ================= 2. 作品一覧画面 ================= -->
-        <div id="screen-works" class="screen hidden">
-            <div class="card">
-                <h3 style="color: var(--primary-color); margin-bottom: 10px;">📊 作品別 観劇サマリー</h3>
-                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">劇場観劇と配信視聴が別々に集計されます。タップして詳細を確認できます。</p>
-                <div id="works-summary-list"></div>
-            </div>
+        <div id="history-container">
+            <!-- 履歴がここに描画されます -->
         </div>
+    </div>
 
-        <!-- ================= 3. 時系列観劇歴画面 ================= -->
-        <div id="screen-timeline" class="screen hidden">
-            <div class="card">
-                <h3 style="color: var(--primary-color); margin-bottom: 10px;">📅 時系列観劇歴</h3>
-                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">観劇した順に一覧表示されます。タップすると編集や削除が可能です。</p>
-                <div id="timeline-list-container"></div>
-            </div>
-        </div>
-
-        <!-- ================= 4. キャスト一覧・編集画面 ================= -->
-        <div id="screen-casts" class="screen hidden">
-            <div class="card">
-                <div class="search-filters">
-                    <button class="active" onclick="setSearchFilter('all', this)">すべて</button>
-                    <button onclick="setSearchFilter('name', this)">キャスト名</button>
-                    <button onclick="setSearchFilter('work', this)">作品名</button>
-                    <button onclick="setSearchFilter('role', this)">役名</button>
-                </div>
-                <input type="text" id="search-input" placeholder="フリーワードで検索（例：道口、エルサ等）" oninput="filterCasts()">
-            </div>
-            <div class="card">
-                <h3 style="color: var(--primary-color); margin-bottom: 10px;">👥 キャスト一覧・詳細編集</h3>
-                <div id="cast-list-container"></div>
-            </div>
-        </div>
-
-        <!-- ================= 5. 設定画面 ================= -->
-        <div id="screen-settings" class="screen hidden">
-            <div class="card">
-                <h3 style="color: var(--primary-color);">作品マスター設定</h3>
-                <div class="form-group" style="margin-top: 10px;">
-                    <input type="text" id="new-work-input" placeholder="作品名を入力してEnter" onkeydown="handleWorkKeydown(event)">
-                    <button style="margin-top: 5px;" onclick="addMasterWork()">作品を追加</button>
-                </div>
-                <div id="work-tag-list" class="item-tag-list"></div>
-            </div>
-
-            <div class="card">
-                <h3 style="color: var(--primary-color);">劇場マスター設定</h3>
-                <div class="form-group" style="margin-top: 10px;">
-                    <input type="text" id="new-theater-input" placeholder="劇場名を入力してEnter" onkeydown="handleTheaterKeydown(event)">
-                    <button style="margin-top: 5px;" onclick="addMasterTheater()">劇場を追加</button>
-                </div>
-                <div id="theater-tag-list" class="item-tag-list"></div>
-            </div>
-
-            <div class="card">
-                <h3 style="color: var(--primary-color);">作品ごとの役名マスター設定</h3>
-                <div class="form-group" style="margin-top: 10px;">
-                    <label>対象作品</label>
-                    <select id="role-target-work" onchange="renderRoleSettings()"></select>
+    <!-- 新規登録タブ -->
+    <div id="tab-add" class="tab-content">
+        <div class="card">
+            <h2 style="font-size: 1.1rem; margin-top: 0; color: var(--primary-color);">観劇記録の追加</h2>
+            <form id="add-form" onsubmit="saveRecord(event)">
+                <div class="form-group">
+                    <label for="rec-work">作品名</label>
+                    <select id="rec-work" required onchange="updateCastInputs()">
+                        <option value="">選択してください</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <input type="text" id="new-role-input" placeholder="役名を入力" onkeydown="handleRoleKeydown(event)">
-                    <button style="margin-top: 5px;" onclick="addMasterRole()">役名を追加</button>
+                    <label for="rec-date">観劇日</label>
+                    <input type="date" id="rec-date" required>
                 </div>
-                <div id="role-tag-list" class="item-tag-list"></div>
-            </div>
-
-            <div class="card" style="border: 2px dashed var(--danger-color);">
-                <h3 style="color: var(--danger-color); margin-bottom: 8px;">⚠️ データ管理</h3>
-                <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">初期状態へのリセットが行えます。</p>
-                <button onclick="resetToDefaultData()" style="background-color: var(--danger-color);">初期データにリセットする</button>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- 汎用モーダルポップアップ -->
-    <div id="detailModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">詳細情報</h3>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div id="modalBody"></div>
-        </div>
-    </div>
-
-    <!-- 下バナーナビゲーション -->
-    <nav class="nav-bar">
-        <div class="nav-item active" onclick="switchScreen('home', this)">
-            <div>🏠</div>登録
-        </div>
-        <div class="nav-item" onclick="switchScreen('works', this)">
-            <div>🎭</div>作品一覧
-        </div>
-        <div class="nav-item" onclick="switchScreen('timeline', this)">
-            <div>📅</div>時系列歴
-        </div>
-        <div class="nav-item" onclick="switchScreen('casts', this)">
-            <div>🔍</div>キャスト
-        </div>
-        <div class="nav-item" onclick="switchScreen('settings', this)">
-            <div>⚙️</div>設定
-        </div>
-    </nav>
-
-    <script>
-        const defaultWorks = ['アナと雪の女王', 'アラジン', 'オペラ座の怪人', 'キャッツ', 'ゴースト＆レディ', 'ノートルダムの鐘', 'バケモノの子', 'バック・トゥ・ザ・フューチャー', '美女と野獣', 'ひばり', 'マンマ・ミーア！', 'ライオンキング'];
-        const defaultTheaters = ['四季劇場「春」', '四季劇場「秋」', '電通四季劇場「海」', 'キャッツ・シアター（品川区東五反田）', 'KAAT神奈川芸術劇場', '名古屋四季劇場', '大阪四季劇場', '自由劇場（浜松町）', '有明四季劇場', '舞浜アンフィシアター', '【配信】自宅・オンライン'];
-        
-        const defaultRoles = {
-            'アナと雪の女王': ['エルサ', 'アナ', 'クリストフ', 'オラフ', 'ハンス', 'ウェーゼルトン', 'スヴェン', 'パビー', 'バルダ', 'オーケン', 'アグナル王', 'イドゥーナ妃', 'ヤングエルサ', 'ヤングアナ', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7'],
-            'アラジン': ['ジーニー', 'アラジン', 'ジャスミン', 'ジャファー', 'イアーゴ', 'カシーム', 'オマール', 'バブカック', '王（サルタン）', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '男性アンサンブル8', '男性アンサンブル9', '男性アンサンブル10', '男性アンサンブル11', '男性アンサンブル12', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7'],
-            'オペラ座の怪人': ['オペラ座の怪人', 'クリスティーヌ・ダーエ', 'ラウル・シャニュイ子爵', 'カルロッタ・ジュディチェルリ', 'メグ・ジリー', 'マダム・ジリー', 'ムッシュー・アンドレ', 'ムッシュー・フィルマン', 'ウバルド・ピアンジ', 'ムッシュー・レイエ', 'ムッシュー・ルフェーブル', 'ジョセフ・ブケー', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7', '女性アンサンブル8', '女性アンサンブル9', '女性アンサンブル10', '女性アンサンブル11', '女性アンサンブル12'],
-            'キャッツ': ['グリザベラ', 'オールドデュトロノミー', 'ジェリーロラム=グリドルボーン', 'アスパラガス=グロールタイガー', 'ジェニエニドッツ', 'バストファージョーンズ', 'ランペルティーザ', 'マンカストラップ', 'ディミータ', 'ラム・タム・タガー', 'ボンバルリーナ', 'ミストフェリーズ', 'シラバブ', 'マンゴジェリー', 'タントミール', 'スキンブルシャンクス', 'ジェミマ', 'コリコパット', 'ヴィクトリア', 'ランパスキャット', 'カッサンドラ', 'カーバケッティ', 'ギルバート', 'マキャヴィティ', 'タンブルブルータス'],
-            'ゴースト＆レディ': ['フロー（フローレンス・ナイチンゲール）', 'グレイ', 'ジョン・ホール軍医長官', 'デオン・ド・ボーモン', 'アレックス・モートン', 'エイミー', 'ウィリアム・ラッセル', 'ボブ', 'ハーバード戦時大臣/男性アンサンブル', 'ヴィクトリア女王/フローの母/女性アンサンブル', 'フィッツジェラルド/男性アンサンブル', 'フローの姉/女性アンサンブル', 'フローの父/男性アンサンブル', 'レディ・エリザベス/女性アンサンブル', 'メンジーズ/男性アンサンブル', 'シャーロット/女性アンサンブル', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5'],
-            'ノートルダムの鐘': ['カジモド', 'フロロー', 'エスメラルダ', 'フィーバス', 'クロパン', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '男性アンサンブル8', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '男性クワイヤ1', '男性クワイヤ2', '男性クワイヤ3', '男性クワイヤ4', '男性クワイヤ5', '男性クワイヤ6', '男性クワイヤ7', '男性クワイヤ8', '女性クワイヤ1', '女性クワイヤ2', '女性クワイヤ3', '女性クワイヤ4', '女性クワイヤ5', '女性クワイヤ6', '女性クワイヤ7', '女性クワイヤ8'],
-            'バケモノの子': ['熊徹', '蓮/九太（青年）', '猪王山', '一郎彦（青年）', '多々良', '百秋坊', '二朗丸（青年）', '宗師', '楓', '蓮の母', '蓮/九太（少年）', '一郎彦（少年）', '二朗丸（少年）', '蓮の父/男性アンサンブル', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '男性アンサンブル8', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7', '女性アンサンブル8'],
-            'バック・トゥ・ザ・フューチャー': ['マーティ・マクフライ', 'ドク・ブラウン', 'ロレイン・ベインズ', 'ジョージ・マクフライ', 'ビフ・タネン', 'ゴールディ・ウィルソン', 'ジェニファー・パーカー', 'ストリックランド', 'デイヴ・マクフライ', 'リンダ・マクフライ', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5'],
-            '美女と野獣': ['ベル', 'ビースト', 'モリース', 'ガストン', 'ルフウ', 'ルミエール', 'コッグスワース', 'ミセス・ポット', 'マダム・ブーシュ', 'バベット', 'チップ', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '男性アンサンブル8', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7', '女性アンサンブル8'],
-            'ひばり': ['ジャンヌ', 'コーション', '宗教裁判所大審問官', '主任検事', 'ラヴニュ', 'ウォーリック伯', 'シャルル七世', '王妃', 'アニエス', 'ヨランド王太后', 'ランス大司教', 'ラ・トレムイ', 'ラ・イール', 'ボードリクール', 'ブドゥース', 'ジャンヌの父親', 'ジャンヌの母親', 'ジャンヌの兄', '死刑執行人', 'シャルルの小姓', '貴婦人たち1', '貴婦人たち2', '貴婦人たち3', '貴婦人たち4', '貴婦人たち5', '貴婦人たち6', '英国兵士他1', '英国兵士他2', '英国兵士他3'],
-            'マンマ・ミーア！': ['ドナ・シェリダン', 'ソフィ・シェリダン', 'ターニャ', 'ロージー', 'サム・カーマイケル', 'ハリー・ブライト', 'ビル・オースティン', 'スカイ', 'アリ', 'リサ', 'エディ', 'ペッパー', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7'],
-            'ライオンキング': ['ラフィキ', 'ムファサ', 'ザズ', 'スカー', 'ヤングシンバ', 'ヤングナラ', 'シェンジ', 'バンザイ', 'エド', 'ティモン', 'プンバァ', 'シンバ', 'ナラ', 'サラビ', '男性アンサンブル1', '男性アンサンブル2', '男性アンサンブル3', '男性アンサンブル4', '男性アンサンブル5', '男性アンサンブル6', '男性アンサンブル7', '男性アンサンブル8', '男性アンサンブル9', '男性アンサンブル10', '男性アンサンブル11', '男性アンサンブル12', '女性アンサンブル1', '女性アンサンブル2', '女性アンサンブル3', '女性アンサンブル4', '女性アンサンブル5', '女性アンサンブル6', '女性アンサンブル7', '女性アンサンブル8', '女性アンサンブル9', '女性アンサンブル10', '女性アンサンブル11', '女性アンサンブル12']
-        };
-
-        const defaultCasts = [
-            { id: 1, name: '道口 瑞之', kana: 'どうぐち みつゆき', birth: '1971/12/02', age: '', joined: '1996年', intro: '「人間になりたがった猫」ライオネル等', history: [] },
-            { id: 2, name: '一和 洋輔', kana: 'いちわ ようすけ', birth: '1986/01/23', age: '', joined: '', intro: '「むかしむかしゾウがきた」初舞台', history: [] },
-            { id: 3, name: '平田 愛咲', kana: 'ひらた あずさ', birth: '1991/04/06', age: '', joined: '', intro: '「美女と野獣」ベル等', history: [] },
-            { id: 4, name: '勅使瓦 武志', kana: 'てしがわら たけし', birth: '1966/04/09', age: '', joined: '2004年', intro: '「アンチゴーヌ」初舞台', history: [] },
-            { id: 5, name: '阿部 よしつぐ', kana: 'あべ よしつぐ', birth: '1979/05/17', age: '', joined: '', intro: '「クレイジー・フォー・ユー」ミンゴ等', history: [] },
-            { id: 6, name: '田中 宣宗', kana: 'たなか よしとき', birth: '1984/12/13', age: '', joined: '2006年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 7, name: '戸高 圭介', kana: 'とだか けいすけ', birth: '', age: '', joined: '2010年研究所', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 8, name: '白瀬 英典', kana: 'しらせ ひでのり', birth: '', age: '', joined: '2007年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 9, name: '増田 守人', kana: 'ますだ もりと', birth: '', age: '', joined: '2001年', intro: '「キャッツ」オールドデュトロノミー初舞台', history: [] },
-            { id: 10, name: '篤木 竜堂', kana: 'つたき りゅうどう', birth: '', age: '', joined: '2016年研究所', intro: '「アラジン」初舞台', history: [] },
-            { id: 11, name: '濱中 湧大', kana: 'はまなか ゆうだい', birth: '', age: '', joined: '2016年研究所', intro: '「ガンバの大冒険」初舞台', history: [] },
-            { id: 12, name: '熊川 剣一', kana: 'くまかわ けんいち', birth: '', age: '', joined: '', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 13, name: '堤箸 一平', kana: 'さげはし いっぺい', birth: '', age: '', joined: '2015年', intro: '「アラジン」初舞台', history: [] },
-            { id: 14, name: '笠松 哲郎', kana: 'かさまつ てつろう', birth: '', age: '', joined: '2010年研究所', intro: '「キャッツ」ランパスキャット等', history: [] },
-            { id: 15, name: '髙草木 健二', kana: 'たかくさぎ けんじ', birth: '', age: '', joined: '2016年研究所', intro: '「嵐の中の子どもたち」ポー初舞台', history: [] },
-            { id: 16, name: '川村 英', kana: 'かわむら あきら', birth: '1978/03/09', age: '', joined: '2010年研究所', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 17, name: '南 圭祐', kana: 'みなみ けいすけ', birth: '', age: '', joined: '', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 18, name: '清川 昌', kana: 'きよかわ あきら', birth: '', age: '', joined: '', intro: '「夢から醒めた夢」初舞台', history: [] },
-            { id: 19, name: '林 晃平', kana: 'はやし こうへい', birth: '1985/09/21', age: '', joined: '2009年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 20, name: '渡久山 慶', kana: 'とくやま けい', birth: '', age: '', joined: '', intro: '「エクウス（馬）」ナジェット等', history: [] },
-            { id: 21, name: '廣野 圭亮', kana: 'ひろの けいすけ', birth: '', age: '', joined: '2001年研究所', intro: '「九朗衛門」初舞台', history: [] },
-            { id: 22, name: '杉野 早季', kana: 'すぎの さき', birth: '1991', age: '', joined: '2015年', intro: '「キャッツ」ヴィクトリア初舞台', history: [] },
-            { id: 23, name: '加島 茜', kana: 'かしま あかね', birth: '1985/12/17', age: '', joined: '', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 24, name: '川田 菜々子', kana: 'かわだ ななこ', birth: '', age: '', joined: '2017年研究所', intro: '「アラジン」初舞台', history: [] },
-            { id: 25, name: '田村 有香理', kana: 'たむら ゆかり', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 26, name: '秋山 舞', kana: 'あきやま まい', birth: '', age: '', joined: '', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 27, name: '小島 光葉', kana: 'こじま みつは', birth: '', age: '', joined: '2007年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 28, name: '矢野 侑子', kana: 'やの ゆうこ', birth: '', age: '', joined: '2009年研究所', intro: '「嵐の中の子どもたち」カロリー初舞台', history: [] },
-            { id: 29, name: '文永 傑', kana: 'ふみなが すぐる', birth: '', age: '', joined: '2008年', intro: '「ミュージカル李香蘭」初舞台', history: [] },
-            { id: 30, name: '黒柳 安奈', kana: 'くろやなぎ あんな', birth: '', age: '', joined: '2011年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 31, name: '渡辺 智佳', kana: 'わたなべ ちか', birth: '1991/10/09', age: '', joined: '', intro: '「南十字星」初舞台', history: [] },
-            { id: 32, name: '松山 育恵', kana: 'まつやま いくえ', birth: '1990', age: '', joined: '2011年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 33, name: '照沼 大樹', kana: 'てるぬま ひろき', birth: '', age: '', joined: '2017年', intro: '「キャッツ」カーバケッティ初舞台', history: [] },
-            { id: 34, name: '加藤 迪', kana: 'かとう すすむ', birth: '1987/10/11', age: '', joined: '2008年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 35, name: '織笠 里佳子', kana: 'おりかさ りかこ', birth: '', age: '', joined: '2003年', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 36, name: '飯村 泰志', kana: 'いいむら やすし', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 37, name: '小野 実咲季', kana: 'おの みさき', birth: '', age: '', joined: '2916年研究所', intro: '「ガンバの大冒険」初舞台', history: [] },
-            { id: 38, name: '正木 棟馬', kana: 'まさき とうま', birth: '1983/09/15', age: '', joined: '', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 39, name: '花田 菜美子', kana: 'はなだ なみこ', birth: '', age: '', joined: '', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 40, name: '山中 由貴', kana: 'たまなか ゆき', birth: '', age: '', joined: '2008年研究所', intro: '「南十字星」キキ初舞台', history: [] },
-            { id: 41, name: '上川 一哉', kana: 'かみかわ かずや', birth: '1986/10/07', age: '', joined: '2005年研究所', intro: '「人間になりたがった猫」初舞台（すでに退団）', history: [] },
-            { id: 42, name: '草場 有輝', kana: 'くさば ゆうき', birth: '1987/6/21', age: '', joined: '2014/06/01', intro: '「美女と野獣」初舞台（すでに退団）', history: [] },
-            { id: 43, name: '玉井 晴章', kana: 'たまい はるあき', birth: '1989/11/19', age: '', joined: '2007年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 44, name: '間辺 朋美', kana: 'まなべ ともみ', birth: '1988', age: '', joined: '', intro: '「ウェストサイド物語」ポーリン初舞台', history: [] },
-            { id: 45, name: '田邊 祐真', kana: 'たなべ ゆうま', birth: '1996/08/03', age: '', joined: '2015年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 46, name: '円野 つくし', kana: 'まるの つくし', birth: '1991/11/06', age: '', joined: '', intro: '「ウィキッド」初舞台', history: [] },
-            { id: 47, name: '押田 柊', kana: 'おしだ しゅう', birth: '1994/11/29', age: '', joined: '2015年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 48, name: '引木 愛', kana: 'ひきぎ まな', birth: '', age: '', joined: '2010年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 49, name: '分部 惇平', kana: 'わかべ じゅんぺい', birth: '', age: '', joined: '2011年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 50, name: '山田 祐里子', kana: 'やまだ ゆりこ', birth: '', age: '', joined: '2014年研究所', intro: '「むかしむかしゾウがきた」初舞台', history: [] },
-            { id: 51, name: '新庄 真一', kana: 'しんじょう しんいち', birth: '1984/05/23', age: '', joined: '2008年研究所', intro: '「むかしむかしゾウがきた」初舞台', history: [] },
-            { id: 52, name: '田極 翼', kana: 'たごく つばさ', birth: '1986/11/24', age: '', joined: '', intro: '「キャッツ」タンブルブルータス初舞台（すでに退団）', history: [] },
-            { id: 53, name: '高野 佳基', kana: 'たかの よしき', birth: '', age: '', joined: '', intro: '「キャッツ」ギルバート等', history: [] },
-            { id: 54, name: '岩崎 晋也', kana: 'いわさき しんや', birth: '1982/08/03', age: '', joined: '2003年', intro: '「アンデルセン」初舞台', history: [] },
-            { id: 55, name: '河津 修一', kana: 'かわず しゅういち', birth: '1985/03/01', age: '', joined: '', intro: '「ウェストサイド物語」インディオ初舞台', history: [] },
-            { id: 56, name: '金原 美喜', kana: 'かねはら みき', birth: '', age: '', joined: '', intro: '「ライオンキング」ラフィキ初舞台', history: [] },
-            { id: 57, name: '橋元 聖地', kana: 'はしもと せいじ', birth: '', age: '', joined: '2007年', intro: '「キャッツ」オールドデュトロノミー初舞台', history: [] },
-            { id: 58, name: '奥平 光紀', kana: 'おくだいら みき', birth: '1990', age: '', joined: '2010年研究所', intro: '「赤毛のアン」初舞台', history: [] },
-            { id: 59, name: '笠原 光希', kana: 'かさはら みき', birth: '1991/03/26', age: '', joined: '', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 60, name: '片岡 英子', kana: 'かたおか えいこ', birth: '', age: '', joined: '2015年研究所', intro: '「エルコスの祈り」初舞台', history: [] },
-            { id: 61, name: '金本 泰潤', kana: 'かねもと たいじゅん', birth: '1991/05/25', age: '', joined: '2015/06/01', intro: '「ライオンキング」初舞台（すでに退団）', history: [] },
-            { id: 62, name: '小野 日歌里', kana: '', birth: '', age: '', joined: '', intro: 'キャッツプログラム表記なし', history: [] },
-            { id: 63, name: '佐藤 友里江', kana: '', birth: '', age: '', joined: '', intro: 'キャッツプログラム表記なし', history: [] },
-            { id: 64, name: '横井 漱', kana: 'よこい そう', birth: '1991/01/11', age: '35歳', joined: '2010年研究所', intro: '「キャッツ」コリコパット初舞台', history: [] },
-            { id: 65, name: '藤原 加奈子', kana: 'ふじわら かなこ', birth: '', age: '', joined: '2016年研究所', intro: '「キャッツ」シラバブ初舞台', history: [] },
-            { id: 66, name: '森田 一輝', kana: '', birth: '', age: '', joined: '', intro: 'キャッツプログラム表記なし', history: [] },
-            { id: 67, name: '野田 彩恵子', kana: 'のだ さえこ', birth: '', age: '', joined: '2010年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 68, name: '小林 唯', kana: '', birth: '1993/2/27', age: '', joined: '', intro: 'キャッツプログラム表記なし（すでに退団）', history: [] },
-            { id: 69, name: '一色 籠次郎', kana: 'いっしき りゅうじろう', birth: '1990/09/20', age: '', joined: '2011年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 70, name: '河上 知輝', kana: 'かわかみ ともき', birth: '', age: '', joined: '2016年', intro: '「アンデルセン」初舞台', history: [] },
-            { id: 71, name: '藤本 典子', kana: 'ふじもと のりこ', birth: '', age: '', joined: '2017年研究所', intro: '「王様の耳はロバの耳」初舞台', history: [] },
-            { id: 72, name: '飯田 洋輔', kana: 'いいだ ようすけ', birth: '', age: '', joined: '', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 73, name: '山本 紗衣', kana: 'やまもと さえ', birth: '', age: '', joined: '2010年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 74, name: '河村 彩', kana: 'かわむら あや', birth: '', age: '', joined: '2008年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 75, name: '松尾 優', kana: 'まつお ゆう', birth: '', age: '', joined: '2012年', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 76, name: '木村 智秋', kana: 'きむら ちあき', birth: '', age: '', joined: '', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 77, name: '平良 交一', kana: 'たいら こういち', birth: '', age: '', joined: '2007年', intro: '「オペラ座の怪人」ジョセフ・ブケー初舞台', history: [] },
-            { id: 78, name: '山口 泰伸', kana: 'やまぐち ひろのぶ', birth: '', age: '', joined: '2011年', intro: '「間奏曲」初舞台', history: [] },
-            { id: 79, name: '雲田 隆弘', kana: 'くもだ たかひろ', birth: '', age: '', joined: '1997年研究所', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 80, name: '田辺 容', kana: 'たなべ よう', birth: '', age: '', joined: '1999年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 81, name: '高井 治', kana: 'たかい おさむ', birth: '', age: '', joined: '1999年', intro: '「キャッツ」オールドデュトロノミー初舞台', history: [] },
-            { id: 82, name: '渡辺 吾郎', kana: 'わたなべ ごろう', birth: '', age: '', joined: '2019年', intro: '特になし', history: [] },
-            { id: 83, name: '高舛 裕一', kana: 'たかます ゆういち', birth: '', age: '', joined: '2016年', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 84, name: '安田 楓汰', kana: 'やすだ ふうた', birth: '', age: '', joined: '2019年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 85, name: '新井 克', kana: 'あらい すぐる', birth: '', age: '', joined: '2015年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 86, name: '松永 隆志', kana: 'まつなが りゅうじ', birth: '', age: '', joined: '2005年', intro: '「ミュージカル李香蘭」初舞台', history: [] },
-            { id: 87, name: '貞松 響', kana: 'さだまつ ひびき', birth: '1995/12/03', age: '', joined: '2018年研究所', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 88, name: '秋山 知子', kana: 'あきやま ともこ', birth: '', age: '', joined: '1997年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 89, name: '藤原 遥香', kana: 'ふじわら はるか', birth: '', age: '', joined: '2019年研究所', intro: '特になし', history: [] },
-            { id: 90, name: '清水 智咲子', kana: 'しみず ちさこ', birth: '', age: '', joined: '2018年研究所', intro: '「エビータ」初舞台', history: [] },
-            { id: 91, name: '小山 百合恵', kana: 'こやま ゆりえ', birth: '', age: '', joined: '2013年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 92, name: '中田 成美', kana: 'なかだ なるみ', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 93, name: '荒巻 くるみ', kana: 'あらまき くるみ', birth: '', age: '', joined: '2016年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 94, name: '石田 真子', kana: 'いしだ まこ', birth: '', age: '', joined: '2013年研究所', intro: '「李香蘭」初舞台', history: [] },
-            { id: 95, name: '鮫嶋 美里', kana: 'さめじま みり', birth: '', age: '', joined: '2018年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 96, name: '三島 瑞稀', kana: 'みしま みずき', birth: '', age: '', joined: '2019年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 97, name: '林 明梨', kana: 'はやし あかり', birth: '', age: '', joined: '2018年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 98, name: '宇佐美 舞', kana: 'うさみ まい', birth: '', age: '', joined: '2018年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 99, name: '川畑 和寛', kana: 'かわばた かずひろ', birth: '', age: '', joined: '2017年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 100, name: '岩城 雄太', kana: 'いわき ゆうた', birth: '1975/02/21', age: '', joined: '2001年', intro: '「キャッツ」スキンブル・シャンクス等', history: [] },
-            { id: 101, name: '光田 健一', kana: 'みつだ けんいち', birth: '', age: '', joined: '2010年', intro: '「エビータ」初舞台', history: [] },
-            { id: 102, name: '辻 奈々', kana: 'つじ なな', birth: '', age: '', joined: '2012年', intro: '「オペラ座の怪人」カルロッタ初舞台', history: [] },
-            { id: 103, name: '戸田 愛子', kana: 'とだ あいこ', birth: '', age: '', joined: '', intro: '「オンディーヌ」サランボー初舞台', history: [] },
-            { id: 104, name: '村 俊英', kana: 'むら としひで', birth: '', age: '', joined: '1990年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 105, name: '日浦 眞矩', kana: 'ひうら まく', birth: '', age: '', joined: '2015年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 106, name: '志村 要', kana: 'しむら かなめ', birth: '', age: '', joined: '', intro: '「思い出を売る男」初参加', history: [] },
-            { id: 107, name: '村田 慶介', kana: 'むらた けいすけ', birth: '', age: '', joined: '2016年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 108, name: '髙橋 祐樹', kana: 'たかはし ゆうき', birth: '', age: '', joined: '2016年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 109, name: '石川 敦貴', kana: 'いしかわ あつき', birth: '', age: '', joined: '2017年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 110, name: '辻 雄飛', kana: 'つじ ゆうひ', birth: '', age: '', joined: '2020年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 111, name: '吉田 蓮', kana: 'よしだ れん', birth: '', age: '', joined: '2017年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 112, name: '佐藤 圭一', kana: 'さとう けいいち', birth: '', age: '', joined: '2003年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 113, name: '杉山 由衣', kana: 'すぎやま ゆい', birth: '', age: '', joined: '2014年', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 114, name: '結城 湊海', kana: 'ゆうき みなみ', birth: '', age: '', joined: '2018年研究所', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 115, name: '奥平 光音', kana: '', birth: '', age: '', joined: '', intro: '記載なし', history: [] },
-            { id: 116, name: '鳥越 ゆみこ', kana: '', birth: '', age: '', joined: '', intro: '記載なし', history: [] },
-            { id: 117, name: '小林 美沙希', kana: 'こばやし みさき', birth: '', age: '', joined: '2019年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 118, name: '堀江 美月', kana: 'ほりえ みつき', birth: '', age: '', joined: '2020年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 119, name: '竹下 里香', kana: 'たけした りか', birth: '', age: '', joined: '2019年研究所', intro: '特になし', history: [] },
-            { id: 120, name: '松岡 ゆめ', kana: 'まつおか ゆめ', birth: '', age: '', joined: '', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 121, name: '河津 るり子', kana: '', birth: '', age: '', joined: '', intro: '記載なし', history: [] },
-            { id: 122, name: '清水 大星', kana: 'しみず たいせい', birth: '', age: '', joined: '2011年', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 123, name: '五所 真理子', kana: 'ごしょ まりこ', birth: '', age: '', joined: '2007年研究所', intro: '「ふたりのロッテ」初舞台', history: [] },
-            { id: 124, name: '北澤 裕輔', kana: 'きたざわ ゆうすけ', birth: '', age: '', joined: '1998年', intro: '「オペラ座の怪人」ラウル等', history: [] },
-            { id: 125, name: '永井 崇多宏', kana: 'ながい たかひろ', birth: '', age: '', joined: '', intro: '「オペラ座の怪人」ウバルド・ピアンジ初舞台', history: [] },
-            { id: 126, name: '川原 信弘', kana: 'かわはら のぶひろ', birth: '', age: '', joined: '2003年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 127, name: '野村 数幾', kana: 'のむら かずき', birth: '', age: '', joined: '2008年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 128, name: '宇都宮 千織', kana: 'うつのみや ちおり', birth: '', age: '', joined: '2016年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 129, name: '小川 晃世', kana: 'おがわ あきよ', birth: '', age: '', joined: '2015年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 130, name: '柳 葉奈', kana: 'やなぎ はな', birth: '', age: '', joined: '2018年研究所', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 131, name: '徳山 稚子', kana: 'とくやま わかこ', birth: '', age: '', joined: '2016年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 132, name: '田中 紅音', kana: 'たなか あかね', birth: '', age: '', joined: '2019年研究所', intro: '特になし', history: [] },
-            { id: 133, name: '田原 真綾', kana: 'たはら まあや', birth: '', age: '', joined: '2015年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 134, name: '澁谷 陽香', kana: 'しぶたに はるか', birth: '', age: '', joined: '2011年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 135, name: '羽田 沙織', kana: 'はねだ さおり', birth: '', age: '', joined: '2011年', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 136, name: '小林 由希子', kana: 'こばやし ゆきこ', birth: '1988/08/02', age: '', joined: '2010年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 137, name: '川野 翔', kana: 'かわの しょう', birth: '1983/06/03', age: '', joined: '2005年', intro: '「李香蘭」初舞台', history: [] },
-            { id: 138, name: '飯村 和也', kana: 'いいむら かずや', birth: '', age: '', joined: '2002年研究所', intro: '「李香蘭」初舞台', history: [] },
-            { id: 139, name: '土井 夏以', kana: 'どい かい', birth: '', age: '', joined: '2018年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 140, name: '井上 隆司', kana: 'いのうえ たかし', birth: '', age: '', joined: '', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 141, name: '勇貴', kana: '', birth: '', age: '', joined: '2019年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 142, name: '朴 悠那', kana: 'ぱく ゆうな', birth: '1905/06/15', age: '', joined: '2011年研究所', intro: '「マンマ・ミーア！」アリ初舞台', history: [] },
-            { id: 143, name: '原田 美欧', kana: 'はらだ みお', birth: '1991/07/27', age: '', joined: '2012年', intro: '「青い鳥」初舞台', history: [] },
-            { id: 144, name: '福島 武臣', kana: 'ふくしま たけおみ', birth: '1978/08/22', age: '', joined: '2004年', intro: '「ライオンキング」プンバァ初舞台', history: [] },
-            { id: 145, name: '黒川 輝', kana: 'くろかわ あきら', birth: '', age: '', joined: '2004年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 146, name: '清水 誠哉', kana: 'しみず せいや', birth: '', age: '', joined: '2017年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 147, name: '海宝 あかね', kana: 'かいほう あかね', birth: '1985/07/21', age: '', joined: '', intro: '子役時代「ライオンキング」ヤングナラ等', history: [] },
-            { id: 148, name: '鈴木 釉佳之', kana: 'すずき ゆかの', birth: '1965/06/24', age: '', joined: '', intro: '「コーラスライン」コニー等', history: [] },
-            { id: 149, name: '宇龍 真吾', kana: 'うりゅう しんご', birth: '', age: '', joined: '2005年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 150, name: '堀 隼二郎（子役）', kana: '', birth: '', age: '', joined: '2009年子役', intro: '', history: [] },
-            { id: 151, name: '千坂 凛（子役）', kana: '', birth: '', age: '', joined: '2010年子役', intro: '', history: [] },
-            { id: 152, name: '海野 愛理', kana: 'うんの えり', birth: '', age: '', joined: '', intro: '「夢から醒めた夢」初舞台', history: [] },
-            { id: 153, name: '池田 英治', kana: 'いけだ えいじ', birth: '1974/03/28', age: '', joined: '1995年', intro: '「クレイジー・フォー・ユー」ユージーン等', history: [] },
-            { id: 154, name: '山下 啓太', kana: 'やました けいた', birth: '1905/06/09', age: '', joined: '2008年研究所', intro: '「ライオンキング」シンバ等', history: [] },
-            { id: 155, name: '市川 友貴', kana: 'いちかわ ゆき', birth: '1982/01/02', age: '', joined: '2000年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 156, name: '五十嵐 春', kana: 'いがらし はる', birth: '', age: '', joined: '2009年', intro: '「ハムレット」初舞台', history: [] },
-            { id: 157, name: '秋山 一哉', kana: 'あきやま かずや', birth: '', age: '', joined: '2018年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 158, name: '鹿内 大夢', kana: 'かのうち ひろむ', birth: '', age: '', joined: '2019年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 159, name: '間 聖次朗', kana: 'はざま せいじろう', birth: '1997/12/25', age: '', joined: '', intro: '子役時代「ライオンキング」ヤングシンバ等', history: [] },
-            { id: 160, name: '佐藤 幸治', kana: 'さとう こうじ', birth: '', age: '', joined: '2012年', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 161, name: '永田 健太', kana: 'ながた けんた', birth: '', age: '', joined: '2019年研究所', intro: 'なし', history: [] },
-            { id: 162, name: '羽賀 悠仁', kana: 'はが ゆうじん', birth: '2000/08/26', age: '', joined: '2019年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 163, name: '前田 員範', kana: 'まえだ かずのり', birth: '', age: '', joined: '2005年', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 164, name: '志賀 ひかる', kana: 'しが ひかる', birth: '', age: '', joined: '2012年研究所', intro: '「南十字星」初舞台', history: [] },
-            { id: 165, name: '森田 江里佳', kana: 'もりた えりか', birth: '', age: '', joined: '2009年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 166, name: '坂井 菜穂', kana: 'さかい なほ', birth: '', age: '', joined: '2014年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 167, name: '福井 麻起子', kana: 'ふくい まきこ', birth: '', age: '', joined: '2005年', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 168, name: '田川 光希', kana: 'たがわ みつき', birth: '', age: '', joined: '', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 169, name: '若松 小百合', kana: 'わかまつ さゆり', birth: '', age: '', joined: '2012年', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 170, name: '沙耶', kana: '', birth: '', age: '', joined: '', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 171, name: '古木 瞳', kana: 'ふるき ひとみ', birth: '', age: '', joined: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 172, name: '吉村 侑姫', kana: 'よしむら ゆうひ', birth: '', age: '', joined: '', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 173, name: '森川 温子', kana: 'もりかわ あつこ', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 174, name: '阿久津 陽一郎', kana: 'あくつ よういちろう', birth: '1971/04/21', age: '', joined: '1994年研究所', intro: '「ライオンキング」シンバ等', history: [] },
-            { id: 175, name: '厂原 時也', kana: 'がんばら ときや', birth: '', age: '', joined: '2006年研究所', intro: '「ユタと不思議な仲間たち」新太初舞台', history: [] },
-            { id: 176, name: '牧野 公昭', kana: 'まきの きみあき', birth: '', age: '', joined: '', intro: '「解って～」熊谷等', history: [] },
-            { id: 177, name: '町田 兼一', kana: 'まちだ けんいち', birth: '', age: '', joined: '2005年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 178, name: '青木 郎', kana: 'あおき あきら', birth: '', age: '', joined: '1977年', intro: '「クレイジー・フォー・ユー」ランク・ホーキンス等', history: [] },
-            { id: 179, name: '菊池 貴大', kana: 'きくち きだい', birth: '', age: '', joined: '2015年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 180, name: '成田 蔵人', kana: 'なりた くらうど', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 181, name: '中村 巖', kana: 'なかむら いわお', birth: '', age: '', joined: '2002年研究所', intro: '「異国の丘」初舞台', history: [] },
-            { id: 182, name: '和泉澤 広野', kana: 'いずみさわ こうや', birth: '', age: '', joined: '', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 183, name: '櫻木 数馬', kana: 'さくらぎ かずま', birth: '', age: '', joined: '', intro: '「ガンバの大冒険」初舞台', history: [] },
-            { id: 184, name: '酒井 康樹', kana: 'さかい やすき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 185, name: '嶋本 優美子', kana: 'しまもと ゆみこ', birth: '', age: '', joined: '2019年研究所', intro: '「アラジン」初舞台', history: [] },
-            { id: 186, name: '森 真琴', kana: 'もり まこと', birth: '', age: '', joined: '2014年', intro: '「むかしむかしゾウがきた」初舞台', history: [] },
-            { id: 187, name: '大寺 菜月', kana: 'おおでら なつき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 188, name: '林 美菜子', kana: 'はやし みなこ', birth: '', age: '', joined: '2015年研究所', intro: '「ガンバの大冒険」初舞台', history: [] },
-            { id: 189, name: '三井 莉穂', kana: 'みつい りほ', birth: '', age: '', joined: '2011年研究所', intro: '「ウィキッド」初舞台', history: [] },
-            { id: 190, name: '三平 果歩', kana: 'さんぺい かほ', birth: '1991/08/16', age: '', joined: '2012年研究所', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 191, name: '南 晶人', kana: 'みなみ あきと', birth: '', age: '', joined: '2006年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 192, name: '山田 充人', kana: 'やまだ あつと', birth: '', age: '', joined: '2012年', intro: '「キャッツ」オールドデュトロノミー初舞台', history: [] },
-            { id: 193, name: '塚田 拓也', kana: 'つかだ たくや', birth: '', age: '', joined: '2011年', intro: '「アスペクツ オブ ラブ」初舞台', history: [] },
-            { id: 194, name: '石野 喜一', kana: 'いしの よしかず', birth: '', age: '', joined: '1995年', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 195, name: '中野 高志', kana: 'なかの たかし', birth: '', age: '', joined: '', intro: '「アラジン」初舞台', history: [] },
-            { id: 196, name: '松下 湧貴', kana: 'まつした ゆうき', birth: '', age: '', joined: '2015年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 197, name: '松本 菜緒', kana: 'まつもと なお', birth: '', age: '', joined: '2007年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 198, name: '竹内 一樹', kana: 'たけうち かずき', birth: '', age: '', joined: '2007年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 199, name: '田川 雄理', kana: 'たがわ ゆうすけ', birth: '', age: '', joined: '2015年', intro: '「キャッツ」マキャヴィティ初舞台', history: [] },
-            { id: 200, name: '大岡 紋', kana: 'おおおか あや', birth: '', age: '', joined: '2010年', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 201, name: '岩瀬 花音（子役）', kana: 'いわせ かのん', birth: '', age: '', joined: '2011年子役', intro: '', history: [] },
-            { id: 202, name: '渡辺 みやび（子役）', kana: 'わたなべ みやび', birth: '', age: '', joined: '2014年子役', intro: '', history: [] },
-            { id: 203, name: '黒田 大夢', kana: 'くろだ ひろむ', birth: '', age: '', joined: '2016年研究所', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 204, name: '小林 優', kana: 'こばやし ゆう', birth: '', age: '', joined: '2012年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 205, name: '笠間 大樹', kana: 'かさま だいき', birth: '', age: '', joined: '2017年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 206, name: '寺尾 聡馬', kana: 'てらお そうま', birth: '', age: '', joined: '2013年研究所', intro: '「桃次郎の冒険」初舞台', history: [] },
-            { id: 207, name: '手島 章平', kana: 'てしま しょうへい', birth: '', age: '', joined: '', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 208, name: '榊山 玲子', kana: 'さかきやま れいこ', birth: '', age: '', joined: '2009年研究所', intro: '「アンデルセン」初舞台', history: [] },
-            { id: 209, name: '小川 美緒', kana: 'おがわ みお', birth: '', age: '', joined: '2005年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 210, name: '靑柳 絵里奈', kana: 'あおやぎ えりな', birth: '', age: '', joined: '', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 211, name: '海沼 千明', kana: 'かいぬま ちあき', birth: '', age: '', joined: '2014年研究所', intro: '「赤毛のアン」初舞台', history: [] },
-            { id: 212, name: '岡本 直子', kana: 'おかもと なおこ', birth: '', age: '', joined: '2015年研究所', intro: '「エルコスの祈り」初舞台', history: [] },
-            { id: 213, name: '染谷 早紀', kana: 'そめや さき', birth: '', age: '', joined: '2009年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 214, name: '佐野 奏実', kana: 'さの かなみ', birth: '', age: '', joined: '2019年', intro: '「パリのアメリカ人」初舞台', history: [] },
-            { id: 215, name: '矢嗚 優花', kana: 'やなる ゆか', birth: '', age: '', joined: '2019年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 216, name: '澁谷 智也', kana: 'しぶや ともなり', birth: '', age: '', joined: '', intro: '「ウェストサイド物語」クラプキ等', history: [] },
-            { id: 217, name: '金久 烈', kana: 'かねひさ れつ', birth: '', age: '', joined: '2004年', intro: '「美女と野獣」ガストン等', history: [] },
-            { id: 218, name: '肥田 晃哉', kana: 'ひだ こうや', birth: '', age: '', joined: '2015年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 219, name: '大木 智貴', kana: 'おおき ともたか', birth: '', age: '', joined: '2015年', intro: '「ウェストサイド物語」ニブルス等', history: [] },
-            { id: 220, name: '吉賀 陶馬ワイス', kana: 'よしが とうまわいす', birth: '', age: '', joined: '', intro: '「アイーダ」メレブ等', history: [] },
-            { id: 221, name: '田中 悠翔（子役）', kana: 'たなか はると', birth: '', age: '', joined: '2013年子役', intro: '', history: [] },
-            { id: 222, name: '山口 優太', kana: 'やまぐち ゆうた', birth: '', age: '', joined: '2015年', intro: '「美女と野獣」初舞台', history: [] },
-            { id: 223, name: '水原 俊', kana: 'みずはら しゅん', birth: '', age: '', joined: '2006年', intro: '「ライオンキング」ソウル公演初舞台', history: [] },
-            { id: 224, name: '吉岡 遊音', kana: 'よしおか ゆうと', birth: '', age: '', joined: '2017年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 225, name: '大脇 史門', kana: 'おおわき しもん', birth: '', age: '', joined: '2020年研究所', intro: '特になし', history: [] },
-            { id: 226, name: '後藤 旭', kana: 'ごとう あきら', birth: '', age: '', joined: '2020年研究所', intro: '「キャッツ」ギルバート初舞台', history: [] },
-            { id: 227, name: '原田 千弘', kana: 'はらだ ちひろ', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 228, name: '立崇 なおと', kana: 'りす なおと', birth: '1995/12/02', age: '30歳', joined: '2018年4月研究所', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 229, name: '瀬下 喬弘', kana: 'せしも たかひろ', birth: '', age: '', joined: '2016年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 230, name: '内田 圭', kana: 'うちだ けい', birth: '', age: '', joined: '2003年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 231, name: '持田 紗希', kana: 'もちだ さき', birth: '', age: '', joined: '2014年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 232, name: '竹田 理央', kana: 'たけだ りお', birth: '1994/07/21', age: '', joined: '2020年研究所', intro: '「バケモノの子」楓', history: [] },
-            { id: 233, name: '田中 彰孝', kana: 'たなか あきたか', birth: '1982/07/28', age: '', joined: '2003年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 234, name: '田島 亨祐', kana: 'たじま りょうすけ', birth: '1964年', age: '', joined: '2003年', intro: '「オンディーヌ」マトー初舞台', history: [] },
-            { id: 235, name: '菊池 俊', kana: 'きくち しゅん', birth: '1980/01/06', age: '', joined: '2016年研究所', intro: '「嵐の中の子どもたち」ケン初舞台', history: [] },
-            { id: 236, name: '韓 盛治', kana: 'Han Song-Chi', birth: '1979/07/10', age: '', joined: '2003年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 237, name: '味方 隆司', kana: 'あじかた りゅうじ', birth: '', age: '', joined: '1982年研究所', intro: '「コーラスライン」初舞台', history: [] },
-            { id: 238, name: '井上 智映子', kana: 'いのうえ ちえこ', birth: '1985年', age: '', joined: '2009年', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 239, name: '時枝 里好', kana: 'ときえだ りよ', birth: '', age: '', joined: '2008年研究所', intro: '「人間になりたがった猫」初舞台', history: [] },
-            { id: 240, name: '土田 彪人（子役）', kana: 'つちだ あやと', birth: '', age: '', joined: '2012年子役', intro: '', history: [] },
-            { id: 241, name: '大橋 冬惟（子役）', kana: 'おおはし とうい', birth: '', age: '', joined: '2009年子役', intro: '', history: [] },
-            { id: 242, name: '佐藤 明莉（子役）', kana: 'さとう あかり', birth: '', age: '', joined: '2014年子役', intro: '', history: [] },
-            { id: 243, name: '小出 敏英', kana: 'こいで としひで', birth: '', age: '', joined: '', intro: '「嵐の中の子どもたち」教授初舞台', history: [] },
-            { id: 244, name: '中村 伝', kana: 'なかむら でん', birth: '', age: '', joined: '', intro: '「ハムレット」フィーティンブラス等', history: [] },
-            { id: 245, name: '前田 睦貴', kana: 'まえだ ともき', birth: '', age: '', joined: '2018年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 246, name: '宮野 薫', kana: 'みやの かおる', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 247, name: '丹下 博喜', kana: 'たんげ ひろき', birth: '1976/03/22', age: '', joined: '1999年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 248, name: '千葉 真大', kana: 'ちば まさひろ', birth: '2026/10/17', age: '', joined: '2018年研究所', intro: '「キャッツ」コリコパット初舞台', history: [] },
-            { id: 249, name: '勝原 亮太', kana: 'かつはら りょうた', birth: '', age: '', joined: '2020年研究所', intro: '「バケモノの子」初舞台', history: [] },
-            { id: 250, name: '小島 絵里衣', kana: 'こじま えりい', birth: '', age: '', joined: '2017年研究所', intro: '「キャッツ」ヴィクトリア初舞台', history: [] },
-            { id: 251, name: '新宮 有香子', kana: 'しんぐう ゆかこ', birth: '', age: '', joined: '2018年研究所', intro: '「はだかの王様」初舞台', history: [] },
-            { id: 252, name: '田辺 恵都', kana: 'たなべ けいと', birth: '', age: '', joined: '2017年研究所', intro: '「魔法をすてたマジョリン」初舞台', history: [] },
-            { id: 253, name: '八重沢 真美', kana: 'やえざわ まみ', birth: '1962/01/26', age: '', joined: '1982年', intro: '「ハンス」マダム・ロード等', history: [] },
-            { id: 254, name: '横田 栞乃', kana: 'よこた かんな', birth: '', age: '', joined: '2016年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 255, name: '小島 由夏', kana: 'おじま ゆか', birth: '2026/06/11', age: '', joined: '2003年', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 256, name: '多田 毬奈', kana: 'ただ まりな', birth: '1991/12/08', age: '34歳', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 257, name: '北野 有希依', kana: 'きたの ゆきえ', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 258, name: '近藤 きらら', kana: 'こんどう きらら', birth: '1995/09/08', age: '', joined: '2017年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 259, name: '原田 真理', kana: 'はらだ まり', birth: '', age: '', joined: '1996年', intro: '「美女と野獣」ミセス・ポット等', history: [] },
-            { id: 260, name: '吉田 功太郎', kana: 'よしだ こうたろう', birth: '', age: '', joined: '2015年研究所', intro: '「エルコスの祈り」初舞台', history: [] },
-            { id: 261, name: '芝 清道', kana: 'しば きよみち', birth: '1962/07/08', age: '', joined: '', intro: '「エビータ」チェ等', history: [] },
-            { id: 262, name: '白石 拓也', kana: 'しらいし たくや', birth: '1983/11/08', age: '', joined: '', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 263, name: '山崎 遥香', kana: 'やまざき はるか', birth: '', age: '', joined: '2016年研究所', intro: '「キャッツ」ボンバルリーナ初舞台', history: [] },
-            { id: 264, name: '武藤 洸次', kana: 'むとう こうじ', birth: '1996/02/26', age: '', joined: '2016年研究所', intro: '「嵐の中の子どもたち」初舞台', history: [] },
-            { id: 265, name: '梅津 亮', kana: 'うめつ りょう', birth: '1979/06/03', age: '', joined: '2010年', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 266, name: '今村 綱利', kana: 'いまむら こうき', birth: '', age: '', joined: '2017年研究所', intro: '「サウンド・オブ・ミュージック」初舞台', history: [] },
-            { id: 267, name: '岩城 あさみ', kana: 'いわしろ あさみ', birth: '1991/12/05', age: '', joined: '2014年研究所', intro: '「キャッツ」シラバブ初舞台', history: [] },
-            { id: 268, name: '伊藤 力', kana: 'いとう ちから', birth: '1981/12/27', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 269, name: '澤村 楽人', kana: 'さわむら がくと', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 270, name: '持木 悠', kana: 'もちき ゆう', birth: '1980/08/01', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 271, name: '和田 ひでき', kana: 'わだ ひでき', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 272, name: '小藤 恵理子', kana: 'ことう えりこ', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 273, name: '高居 洋子', kana: 'たかい ようこ', birth: '1986/10/03', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 274, name: '瀧本 真己', kana: 'たきもと まき', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台（すでに退団？）', history: [] },
-            { id: 275, name: '葛葉 かな', kana: 'かずは かな', birth: '', age: '', joined: '2020年研究所', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 276, name: '梁瀬 彩加', kana: 'やなせ あやか', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 277, name: '川目 晴香', kana: 'かわめ はるか', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台（すでに退団？）', history: [] },
-            { id: 278, name: '吉田 瑛美', kana: 'よしだ えいみ', birth: '', age: '', joined: '', intro: '「ノートルダムの鐘」初舞台', history: [] },
-            { id: 279, name: '二村 誠俊', kana: 'ふたむら まさとし', birth: '', age: '', joined: '2012年研究所', intro: '「夢から醒めた夢」初舞台', history: [] },
-            { id: 280, name: '村田 繭菜', kana: 'むらた まゆな', birth: '', age: '', joined: '2019年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 281, name: '平木 萌子', kana: 'ひらき もえこ', birth: '', age: '', joined: '2015年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 282, name: '上野山 僚太', kana: 'うえのやま りょうた', birth: '', age: '', joined: '2020年研究所', intro: '特になし', history: [] },
-            { id: 283, name: '神田 瞬', kana: 'かんだ しゅん', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 284, name: '大中 ゆかり', kana: 'おおなか ゆかり', birth: '', age: '', joined: '2014年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 285, name: '岩井 千秋', kana: 'いわい ちあき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 286, name: '関野 ひとみ', kana: 'せきの ひとみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 287, name: '大森 瑞樹', kana: 'おおもり みずき', birth: '', age: '', joined: '「ライオンキング」初舞台', history: [] },
-            { id: 288, name: '小林 清孝', kana: 'こばやし きよたか', birth: '', age: '', joined: '2014年研究所', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 289, name: '瀧山 久志', kana: 'たきやま ひさし', birth: '', age: '', joined: '2007年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 290, name: '竹内 華', kana: 'たけうち はな', birth: '', age: '', joined: '2019年研究所', intro: '「ライオンキング」初舞台', history: [] },
-            { id: 291, name: '野中 万寿夫', kana: 'のなか ますお', birth: '', age: '', joined: '', intro: '「キャッツ」マンカストラップ等', history: [] },
-            { id: 292, name: '藤田 光之', kana: 'ふじた みつゆき', birth: '', age: '', joined: '2015年', intro: '「アラジン」バブカック初舞台', history: [] },
-            { id: 293, name: '嶋野 達也', kana: 'しまの たつや', birth: '', age: '', joined: '2007年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 294, name: '深堀 拓也', kana: 'ふかぼり たくや', birth: '', age: '', joined: '', intro: '「マンマ・ミーア！」初舞台', history: [] },
-            { id: 295, name: '齊藤 太一', kana: 'さいとう たいち', birth: '', age: '', joined: '', intro: '「キャッツ」カーバケッティ初舞台', history: [] },
-            { id: 296, name: '寒河江 幸弘', kana: 'さがえ ゆきひろ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 297, name: 'ハンドコ アクアリオ', kana: 'はんどこ あくありお', birth: '', age: '', joined: '', intro: '「夢から醒めた夢」初舞台', history: [] },
-            { id: 298, name: '吉岡 慈夢', kana: 'よしおか じむ', birth: '', age: '', joined: '2016年', intro: '「キャッツ」タンブルブルータス初舞台', history: [] },
-            { id: 299, name: '𠮷田 絢香', kana: 'よしだ あやか', birth: '', age: '', joined: '', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 300, name: '河井 莉佳', kana: 'かわい りか', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 301, name: '島田 栞', kana: 'しまだ しおり', birth: '', age: '', joined: '2017年研究所', intro: '「王様の耳はロバの耳」初舞台', history: [] },
-            { id: 302, name: '小田島 礼奈', kana: 'おだしま れいな', birth: '', age: '', joined: '2015年', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 303, name: '田代 美里', kana: 'たしろ みさと', birth: '', age: '', joined: '2011年研究所', intro: '「赤毛のアン」店員ルシラ初舞台', history: [] },
-            { id: 304, name: '鈴木 貴雅', kana: 'すずき たかまさ', birth: '', age: '', joined: '2019年研究所', intro: '「アナと雪の女王」初舞台', history: [] },
-            { id: 305, name: '鈴本 務', kana: 'すずもと つとむ', birth: '', age: '', joined: '2013年研究所', intro: '「李香蘭」初舞台', history: [] },
-            { id: 306, name: '中川 奈々美', kana: 'なかがわ ななみ', birth: '', age: '', joined: '2014年研究所', intro: '「エルコスの祈り」初舞台', history: [] },
-            { id: 307, name: '木内 和真', kana: 'きうち かずま', birth: '', age: '', joined: '2020年研究所', intro: '「リトルマーメイド」初舞台', history: [] },
-            { id: 308, name: '宮田 愛', kana: 'みやた あい', birth: '', age: '', joined: '2011年研究所', intro: '「ソング＆ダンスTheSpirit」初舞台', history: [] },
-            { id: 309, name: '田邊 真也', kana: 'たなべ しんや', birth: '1973/01/02', age: '', joined: '1996年研究所', intro: '「クレイジー・フォー・ユー」ボビー等', history: [] },
-            { id: 310, name: '中野 今日子', kana: 'なかの きょうこ', birth: '1959/06/27', age: '', joined: '', intro: '「ひばり」王妃等', history: [] },
-            { id: 311, name: '星野 元信', kana: 'ほしの もとのぶ', birth: '1958/06/27', age: '', joined: '2011年', intro: '「アンデルセン」初参加', history: [] },
-            { id: 312, name: '林 和男', kana: 'はやし かずお', birth: '', age: '', joined: '', intro: '「エビータ」初舞台', history: [] },
-            { id: 313, name: '大橋 伸予', kana: 'おおはし のぶよ', birth: '1959/03/24', age: '2003年', intro: '「オンディーヌ」王妃イゾルデ等', history: [] },
-            { id: 314, name: '近藤 合歓', kana: 'こんどう ねむ', birth: '', age: '', joined: '2016年研究所', intro: '「アンデルセン」初舞台', history: [] },
-            { id: 315, name: '佐和 由梨', kana: 'さわ ゆり', birth: '1961/09/01', age: '', joined: '', intro: '「壁抜け男」M嬢等', history: [] },
-            { id: 316, name: '橋岡 未浪', kana: 'はしおか みなみ', birth: '', age: '', joined: '2022年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 317, name: '香取 直矢', kana: 'かとり なおや', birth: '', age: '', joined: '2022年研究所', intro: '「ジーザス・クライスト=スーパースター」初舞台', history: [] },
-            { id: 318, name: '大家 征也', kana: 'おおいえ せいや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 319, name: '斉藤 みも', kana: 'さいとう みも', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 320, name: '岸 佳宏', kana: 'きし よしひろ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 321, name: '森本 愛莉', kana: 'もりもと あいり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 322, name: '秋本 みな子', kana: 'あきもと みなこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 323, name: '見付 祐一', kana: 'みつけ ゆういち', birth: '', age: '', joined: '2005年研究所', intro: '「オペラ座の怪人」初舞台', history: [] },
-            { id: 324, name: '塙 康平', kana: 'はなわ こうへい', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 325, name: '本杉 隆朗', kana: 'もとすぎ たかろう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 326, name: '篠田 裕介', kana: 'しのだ ゆうすけ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 327, name: '西村 一輝', kana: 'にしむら かずき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 328, name: '反中 洋介', kana: 'たん中 ようすけ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 329, name: '菅原 あや乃', kana: 'すがわら あやの', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 330, name: '一来 多恵', kana: 'いらい たえ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 331, name: '若山 展久', kana: 'わかやま のぶひさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 332, name: '宮澤 聖夜', kana: 'みやざわ せいや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 333, name: '梅村 花音', kana: 'うめむら かのん', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 334, name: '木村 奏絵', kana: 'きむら かなえ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 335, name: '柴本 優澄美', kana: 'しばもと あすみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 336, name: '竹田 乃愛', kana: 'たけだ のあ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 337, name: '大寺 叶夢', kana: 'おおでら かむ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 338, name: '中村 ひかり', kana: 'なかむら ひかり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 339, name: '東 沙耶', kana: 'ひがし さや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 340, name: '大鹿 礼生', kana: 'おおしか れお', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 341, name: '本城 裕二', kana: 'ほんじょう ゆうじ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 342, name: '鈴木 涼太', kana: 'すずき りょうた', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 343, name: '権頭 雄太朗', kana: 'ごんとう ゆうたろう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 344, name: '大部 朋子', kana: 'おおべ ともこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 345, name: '津田 彩花', kana: 'つだ あやか', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 346, name: '平田 曜子', kana: 'ひらた ようこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 347, name: '松本 昌子', kana: 'まつもと まさこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 348, name: '荒川 務', kana: 'あらかわ つとむ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 349, name: '佐藤 綾', kana: 'さとう あや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 350, name: '長野 千紘', kana: 'ながの ちひろ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 351, name: '宮田 佳奈', kana: 'みやた かな', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 352, name: '宮原 健一郎', kana: 'みやはら けんいちろう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 353, name: '小坂 華加', kana: 'こさか はなか', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 354, name: '宮田 梓', kana: 'みやた あずさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 355, name: '塚本 昌平', kana: 'つかもと しょうへい', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 356, name: '日高 菜摘', kana: 'ひだか なつみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 357, name: '竹内 陽向', kana: 'たけうち ひなた', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 358, name: '塚田 健人', kana: 'つかだ けんと', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 359, name: '土肥 梓', kana: 'どい あずさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 360, name: '武智 正光', kana: 'たけち まさみつ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 361, name: '大鹿 奏絵', kana: 'おおしか かなえ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 362, name: '宮内 康', kana: 'みやうち こう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 363, name: '松島 勇気', kana: 'まつしま ゆうき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 364, name: '中田 圭', kana: 'なかた けい', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 365, name: '中村 友香', kana: 'なかむら ゆか', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 366, name: '中村 莉子', kana: 'なかむら りこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 367, name: '中橋 耕平', kana: 'なかはし こうへい', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 368, name: '中原 詩乃', kana: 'なかはら しの', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 369, name: '中水 直樹', kana: 'なかもず なおき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 370, name: '中山 理沙', kana: 'なかやま りさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 371, name: '成田 陽子', kana: 'なりた ようこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 372, name: '西田 ゆりあ', kana: 'にしだ ゆりあ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 373, name: '西山 竜', kana: 'にしやま りゅう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 374, name: '野田 卓也', kana: 'のだ たくや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 375, name: '野村 玲子', kana: 'のむら れいこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 376, name: '羽賀 琉音', kana: 'はが るおん', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 377, name: '長谷川 彩乃', kana: 'はせがわ あやの', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 378, name: '畑中 竜也', kana: 'はたなか たつや', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 379, name: '服部 幸子', kana: 'はっとり さちこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 380, name: '濱名 翼', kana: 'はまな つばさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 381, name: '林 香純', kana: 'はやし かすみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 382, name: '原田 洋二郎', kana: 'はらだ ようじろう', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 383, name: '針山 兼佑', kana: 'はりやま けんすけ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 384, name: '坂本 剛', kana: 'さかもと つよし', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 385, name: '東 泰久', kana: 'ひがし やすひさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 386, name: '樋口 麻美', kana: 'ひぐち まみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 387, name: '平田 郁夫', kana: 'ひらた いくお', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 388, name: '廣本 則子', kana: 'ひろもと のりこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 389, name: '深水 彰彦', kana: 'ふかみ あきひこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 390, name: '福田 健二', kana: 'ふくだ けんじ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 391, name: '藤川 和彦', kana: 'ふじかわ かずひこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 392, name: '古賀 豊', kana: 'こが ゆたか', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 393, name: '古田 しおり', kana: 'ふるた しおり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 394, name: '細見 佳代', kana: 'ほそみ かよ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 395, name: '前田 更紗', kana: 'まえだ さらさ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 396, name: '増山 美保', kana: 'ますやま みほ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 397, name: '松下 浩子', kana: 'まつした ひろこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 398, name: '松元 恵美', kana: 'まつもと えみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 399, name: '真沼 朋', kana: 'まぬま とも', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 400, name: '三宅 克典', kana: 'みやけ かつのり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 401, name: '宮田 百合', kana: 'みやた ゆり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 402, name: '村山 友美', kana: 'むらやま ともみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 403, name: '森 智子', kana: 'もり ともこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 404, name: '矢野 晃子', kana: 'やの あきこ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 405, name: '山下 泰明', kana: 'やました やすあき', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 406, name: '山田 茜', kana: 'やまだ あかね', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 407, name: '山本 春美', kana: 'やまもと はるみ', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 408, name: '横山 賀一', kana: 'よこやま よしかず', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 409, name: '吉岡 小百合', kana: 'よしおか さゆり', birth: '', age: '', joined: '', intro: 'なし', history: [] },
-            { id: 410, name: '渡辺 正', kana: 'わたなべ ただし', birth: '', age: '', joined: '', intro: 'なし', history: [] }
-        ];
-
-        let masterWorks = [...defaultWorks];
-        let masterTheaters = [...defaultTheaters];
-        let masterRoles = JSON.parse(JSON.stringify(defaultRoles));
-        let masterCasts = JSON.parse(JSON.stringify(defaultCasts));
-        let viewingRecords = [];
-        let currentSearchFilter = 'all';
-
-        async function loadCloudData() {
-            const userId = window.appAuth.currentUser.uid;
-            try {
-                const docRef = doc(window.appDb, "users", userId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.works) masterWorks = data.works;
-                    if (data.theaters) masterTheaters = data.theaters;
-                    if (data.roles) masterRoles = data.roles;
-                    if (data.casts) masterCasts = data.casts;
-                    if (data.records) viewingRecords = data.records;
-                } else {
-                    await saveCloudData();
-                }
-            } catch (e) {
-                console.error("データ読み込みエラー", e);
-            }
-        }
-
-        async function saveCloudData() {
-            if (!window.appAuth.currentUser) return;
-            const userId = window.appAuth.currentUser.uid;
-            try {
-                await setDoc(doc(window.appDb, "users", userId), {
-                    works: masterWorks,
-                    theaters: masterTheaters,
-                    roles: masterRoles,
-                    casts: masterCasts,
-                    records: viewingRecords
-                });
-            } catch (e) {
-                console.error("データ保存エラー", e);
-            }
-        }
-
-        function initApp() {
-            renderWorkSelects();
-            renderTheaterSelects();
-            renderSettingsUI();
-            renderDynamicCastInputs();
-            renderWorksSummary();
-            renderTimeline();
-            renderCastsList();
-        }
-
-        function loginWithGoogle() {
-            signInWithPopup(window.appAuth, window.appProvider).catch((error) => {
-                console.error("ログインエラー", error);
-            });
-        }
-
-        function logout() {
-            signOut(window.appAuth);
-        }
-
-        function switchScreen(screenId, el) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-            document.getElementById('screen-' + screenId).classList.remove('hidden');
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            if(el) el.classList.add('active');
-
-            const titles = {
-                'home': 'ホーム / 登録',
-                'works': '作品一覧',
-                'timeline': '時系列観劇歴',
-                'casts': 'キャスト一覧',
-                'settings': '設定'
-            };
-            document.getElementById('header-title').innerText = titles[screenId] || '';
-        }
-
-        function renderWorkSelects() {
-            const selects = [document.getElementById('rec-work'), document.getElementById('role-target-work')];
-            selects.forEach(select => {
-                if(!select) return;
-                const currentVal = select.value;
-                select.innerHTML = '';
-                masterWorks.forEach(work => {
-                    const opt = document.createElement('option');
-                    opt.value = work;
-                    opt.innerText = work;
-                    select.appendChild(opt);
-                });
-                if(currentVal && masterWorks.includes(currentVal)) {
-                    select.value = currentVal;
-                }
-            });
-            renderDynamicCastInputs();
-        }
-
-        function renderTheaterSelects() {
-            const select = document.getElementById('rec-theater');
-            if(!select) return;
-            const currentVal = select.value;
-            select.innerHTML = '';
-            masterTheaters.forEach(theater => {
-                const opt = document.createElement('option');
-                opt.value = theater;
-                opt.innerText = theater;
-                select.appendChild(opt);
-            });
-            if(currentVal && masterTheaters.includes(currentVal)) {
-                select.value = currentVal;
-            }
-        }
-
-        function onWorkSelected() {
-            renderDynamicCastInputs();
-        }
-
-        function renderDynamicCastInputs() {
-            const container = document.getElementById('dynamic-cast-inputs');
-            const workSelect = document.getElementById('rec-work');
-            if(!container || !workSelect) return;
-
-            const selectedWork = workSelect.value;
-            const roles = masterRoles[selectedWork] || [];
-
-            if(roles.length === 0) {
-                container.innerHTML = `<p style="color: #777; font-size: 0.85rem;">この作品に登録された役名がありません。「設定」から追加してください。</p>`;
-                return;
-            }
-
-            let html = '';
-            roles.forEach((role, idx) => {
-                html += `
-                    <div class="cast-input-row">
-                        <label style="width: 120px; font-size: 0.8rem; margin:0; flex-shrink:0;">${role}</label>
-                        <div class="autocomplete-wrapper">
-                            <input type="text" class="cast-name-input" data-role="${role}" placeholder="キャスト名を入力・選択" autocomplete="off" oninput="onCastInput(this)" onfocus="onCastInput(this)">
-                            <div class="suggestions-box hidden"></div>
-                        </div>
+                <div class="form-group">
+                    <label for="rec-theater">劇場名</label>
+                    <input type="text" id="rec-theater" placeholder="例: 四季劇場「春」" required>
+                </div>
+                <div class="form-group">
+                    <label>キャスト情報</label>
+                    <div id="dynamic-cast-inputs">
+                        <p style="color: #777; font-size: 0.85rem;">作品を選択すると役名が表示されます。</p>
                     </div>
-                `;
-            });
-            container.innerHTML = html;
+                </div>
+                <button type="submit">登録する</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 作品ごとの役名マスター
+    const masterRoles = {
+        "アナと雪の女王": ["エルサ", "アナ", "クリストフ", "オラフ", "ハンス", "ウェーゼルトン", "スヴェン", "パビー", "バルダ", "オーケン", "アグナル王", "イドゥーナ妃", "ヤングエルサ", "ヤングアナ", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7"],
+        "アラジン": ["ジーニー", "アラジン", "ジャスミン", "ジャファー", "イアーゴ", "カシーム", "オマール", "バブカック", "王（サルタン）", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "男性アンサンブル9", "男性アンサンブル10", "男性アンサンブル11", "男性アンサンブル12", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7"],
+        "オペラ座の怪人": ["オペラ座の怪人", "クリスティーヌ・ダーエ", "ラウル・シャニュイ子爵", "カルロッタ・ジュディチェルリ", "メグ・ジリー", "マダム・ジリー", "ムッシュー・アンドレ", "ムッシュー・フィルマン", "ウバルド・ピアンジ", "ムッシュー・レイエ", "ムッシュー・ルフェーブル", "ジョセフ・ブケー", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "男性アンサンブル9", "男性アンサンブル10", "男性アンサンブル11", "男性アンサンブル12", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7", "女性アンサンブル8", "女性アンサンブル9", "女性アンサンブル10", "女性アンサンブル11", "女性アンサンブル12"],
+        "キャッツ": ["グリザベラ", "オールドデュトロノミー", "ジェリーロラム=グリドルボーン", "アスパラガス=グロールタイガー", "ジェニエニドッツ", "バストファージョーンズ", "ランペルティーザ", "マンカストラップ", "ディミータ", "ラム・タム・タガー", "ボンバルリーナ", "ミストフェリーズ", "シラバブ", "マンゴジェリー", "タントミール", "スキンブルシャンクス", "ジェミマ", "コリコパット", "ヴィクトリア", "ランパスキャット", "カッサンドラ", "カーバケッティ", "ギルバート", "マキャヴィティ", "タンブルブルータス"],
+        "ゴースト＆レディ": ["フロー（フローレンス・ナイチンゲール）", "グレイ", "ジョン・ホール軍医長官", "デオン・ド・ボーモン", "アレックス・モートン", "エイミー", "ウィリアム・ラッセル", "ボブ", "ハーバード戦時大臣/男性アンサンブル", "ヴィクトリア女王/フローの母/女性アンサンブル", "フィッツジェラルド/男性アンサンブル", "フローの姉/女性アンサンブル", "フローの父/男性アンサンブル", "レディ・エリザベス/女性アンサンブル", "メンジーズ/男性アンサンブル", "シャーロット/女性アンサンブル", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5"],
+        "ノートルダムの鐘": ["カジモド", "フロロー", "エスメラルダ", "フィーバス", "クロパン", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "男性クワイヤ1", "男性クワイヤ2", "男性クワイヤ3", "男性クワイヤ4", "男性クワイヤ5", "男性クワイヤ6", "男性クワイヤ7", "男性クワイヤ8", "女性クワイヤ1", "女性クワイヤ2", "女性クワイヤ3", "女性クワイヤ4", "女性クワイヤ5", "女性クワイヤ6", "女性クワイヤ7", "女性クワイヤ8"],
+        "バケモノの子": ["熊徹", "蓮/九太（青年）", "猪王山", "一郎彦（青年）", "多々良", "百秋坊", "二朗丸（青年）", "宗師", "楓", "蓮の母", "蓮/九太（少年）", "一郎彦（少年）", "二朗丸（少年）", "蓮の父/男性アンサンブル", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7", "女性アンサンブル8"],
+        "バック・トゥ・ザ・フューチャー": ["マーティ・マクフライ", "ドク・ブラウン", "ロレイン・ベインズ", "ジョージ・マクフライ", "ビフ・タネン", "ゴールディ・ウィルソン", "ジェニファー・パーカー", "ストリックランド", "デイヴ・マクフライ", "リンダ・マクフライ", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5"],
+        "美女と野獣": ["ベル", "ビースト", "モリース", "ガストン", "ルフウ", "ルミエール", "コッグスワース", "ミセス・ポット", "マダム・ブーシュ", "バベット", "チップ", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7", "女性アンサンブル8"],
+        "ひばり": ["ジャンヌ", "コーション", "宗教裁判所大審問官", "主任検事", "ラヴニュ", "ウォーリック伯", "シャルル七世", "王妃", "アニエス", "ヨランド王太后", "ランス大司教", "ラ・トレムイ", "ラ・イール", "ボードリクール", "ブドゥース", "ジャンヌの父親", "ジャンヌの母親", "ジャンヌの兄", "死刑執行人", "シャルルの小姓", "貴婦人たち1", "貴婦人たち2", "貴婦人たち3", "貴婦人たち4", "貴婦人たち5", "貴婦人たち6", "英国兵士他1", "英国兵士他2", "英国兵士他3"],
+        "マンマ・ミーア！": ["ドナ・シェリダン", "ソフィ・シェリダン", "ターニャ", "ロージー", "サム・カーマイケル", "ハリー・ブライト", "ビル・オースティン", "スカイ", "アリ", "リサ", "エディ", "ペッパー", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7"],
+        "ライオンキング": ["ラフィキ", "ムファサ", "ザズ", "スカー", "ヤングシンバ", "ヤングナラ", "シェンジ", "バンザイ", "エド", "ティモン", "プンバァ", "シンバ", "ナラ", "サラビ", "男性アンサンブル1", "男性アンサンブル2", "男性アンサンブル3", "男性アンサンブル4", "男性アンサンブル5", "男性アンサンブル6", "男性アンサンブル7", "男性アンサンブル8", "男性アンサンブル9", "男性アンサンブル10", "男性アンサンブル11", "男性アンサンブル12", "女性アンサンブル1", "女性アンサンブル2", "女性アンサンブル3", "女性アンサンブル4", "女性アンサンブル5", "女性アンサンブル6", "女性アンサンブル7", "女性アンサンブル8", "女性アンサンブル9", "女性アンサンブル10", "女性アンサンブル11", "女性アンサンブル12"]
+    };
+
+    // ご提示いただいた今までの観劇履歴データ（初期値）
+    const initialHistory = [
+        // アナと雪の女王
+        { work: "アナと雪の女王", date: "2022-09-23", theater: "四季劇場「春」", cast: {"エルサ": "三井 莉穂", "アナ": "三平 果歩", "クリストフ": "南 晶人", "オラフ": "山田 充人", "ハンス": "塚田 拓也", "ウェーゼルトン": "石野 喜一", "スヴェン": "中野 高志", "パビー": "松下  湧貴", "バルダ": "松本 菜緒", "オーケン": "竹内 一樹", "アグナル王": "田川 雄理", "イドゥーナ妃": "大岡 紋", "ヤングエルサ": "岩瀬 花音", "ヤングアナ": "渡辺 みやび", "男性アンサンブル1": "文永 傑", "男性アンサンブル2": "黒田 大夢", "男性アンサンブル3": "小林 優", "男性アンサンブル4": "笠間 大樹", "男性アンサンブル5": "寺尾 聡馬", "男性アンサンブル6": "手島 章平", "女性アンサンブル1": "榊山 玲子", "女性アンサンブル2": "小林 由希子", "女性アンサンブル3": "小川 美緒", "女性アンサンブル4": "靑柳 絵里奈", "女性アンサンブル5": "海沼 千明", "女性アンサンブル6": "岡本 直子", "女性アンサンブル7": "染谷 早紀"} },
+        { work: "アナと雪の女王", date: "2026-07-12", theater: "四季劇場「春」", cast: {"エルサ": "森川 温子", "アナ": "町島 智子", "クリストフ": "北村 優", "オラフ": "富永 雄翔", "ハンス": "大家 征也", "ウェーゼルトン": "石野 喜一", "スヴェン": "川野 翔", "パビー": "大森 瑞樹", "バルダ": "松本 菜緒", "オーケン": "塩地 仁", "アグナル王": "桧山 憲", "イドゥーナ妃": "大岡 紋", "ヤングエルサ": "山口 華怜", "ヤングアナ": "佐藤 翠琴", "男性アンサンブル1": "渕上 数馬", "男性アンサンブル2": "計倉 亘", "男性アンサンブル3": "小林 清孝", "男性アンサンブル4": "藤井 京平", "男性アンサンブル5": "寺内 淳", "男性アンサンブル6": "鈴木 貴雅", "女性アンサンブル1": "黒柳 安奈", "女性アンサンブル2": "藤本 典子", "女性アンサンブル3": "土居 來未", "女性アンサンブル4": "青柳 絵里奈", "女性アンサンブル5": "北川 茉莉子", "女性アンサンブル6": "西原 かえで", "女性アンサンブル7": "大森 真理"} },
+        
+        // アラジン
+        { work: "アラジン", date: "2020-08-14", theater: "電通四季劇場「海」", cast: {"ジーニー": "道口 瑞之", "アラジン": "一和 洋輔", "ジャスミン": "平田 愛咲", "ジャファー": "勅使瓦 武志", "イアーゴ": "阿部 よしつぐ", "カシーム": "田中 宣宗", "オマール": "戸高 圭介", "バブカック": "白瀬 英典", "王（サルタン）": "増田 守人", "男性アンサンブル1": "篤木 竜堂", "男性アンサンブル2": "濱中 湧大", "男性アンサンブル3": "熊川 剣一", "男性アンサンブル4": "堤箸 一平", "男性アンサンブル5": "笠松 哲郎", "男性アンサンブル6": "髙草木 健二", "男性アンサンブル7": "川村 英", "男性アンサンブル8": "南 圭祐", "男性アンサンブル9": "清川 昌", "男性アンサンブル10": "林 晃平", "男性アンサンブル11": "渡久山 慶", "男性アンサンブル12": "廣野 圭亮", "女性アンサンブル1": "杉野 早季", "女性アンサンブル2": "加島 茜", "女性アンサンブル3": "川田 菜々子", "女性アンサンブル4": "田村 有香理", "女性アンサンブル5": "秋山 舞", "女性アンサンブル6": "小島 光葉", "女性アンサンブル7": "矢野 侑子"} },
+        { work: "アラジン", date: "2022-07-05", theater: "電通四季劇場「海」", cast: {"ジーニー": "阿久津 陽一郎", "アラジン": "厂原時也", "ジャスミン": "平田 愛咲", "ジャファー": "牧野 公昭", "イアーゴ": "町田 兼一", "カシーム": "田中 宣宗", "オマール": "戸高 圭介", "バブカック": "白瀬 英典", "王（サルタン）": "青木 郎", "男性アンサンブル1": "菊池 貴大", "男性アンサンブル2": "濱中 湧大", "男性アンサンブル3": "成田 蔵人", "男性アンサンブル4": "中村 巖", "男性アンサンブル5": "和泉澤 広野", "男性アンサンブル6": "髙草木 健二", "男性アンサンブル7": "川村 英", "男性アンサンブル8": "櫻木 数馬", "男性アンサンブル9": "清川 昌", "男性アンサンブル10": "林 晃平", "男性アンサンブル11": "酒井 康樹", "男性アンサンブル12": "高野 佳基", "女性アンサンブル1": "嶋本 優美子", "女性アンサンブル2": "渡辺 智佳", "女性アンサンブル3": "森 真琴", "女性アンサンブル4": "大寺 菜月", "女性アンサンブル5": "加島 茜", "女性アンサンブル6": "林 美菜子", "女性アンサンブル7": "森川 温子"} },
+        { work: "アラジン", date: "2023-12-13", theater: "電通四季劇場「海」", cast: {"ジーニー": "瀧山 久志", "アラジン": "立崇 なおと", "ジャスミン": "竹内 華", "ジャファー": "野中 万寿夫", "イアーゴ": "藤田 光之", "カシーム": "岩崎 晋也", "オマール": "嶋野 達也", "バブカック": "山田 充人", "王（サルタン）": "増田 守人", "男性アンサンブル1": "篤木 竜堂", "男性アンサンブル2": "濱中 湧大", "男性アンサンブル3": "清川 昌", "男性アンサンブル4": "堤箸 一平", "男性アンサンブル5": "深堀 拓也", "男性アンサンブル6": "河津 修一", "男性アンサンブル7": "齊藤 太一", "男性アンサンブル8": "寒河江 幸弘", "男性アンサンブル9": "ハンドコ アクアリオ", "男性アンサンブル10": "吉岡 慈夢", "男性アンサンブル11": "大森 瑞樹", "男性アンサンブル12": "小林 清孝", "女性アンサンブル1": "𠮷田 絢香", "女性アンサンブル2": "河井 莉佳", "女性アンサンブル3": "島田 栞", "女性アンサンブル4": "小田島 礼奈", "女性アンサンブル5": "松山 育恵", "女性アンサンブル6": "岡本 直子", "女性アンサンブル7": "田代 美里"} },
+        { work: "アラジン", date: "2025-11-12", theater: "電通四季劇場「海」", cast: {"ジーニー": "瀧山 久志", "アラジン": "一和 洋輔", "ジャスミン": "平田 愛咲", "ジャファー": "深水 彰彦", "イアーゴ": "瀬下 喬弘", "カシーム": "田中 宣宗", "オマール": "鈴本 務", "バブカック": "白瀬 英典", "王（サルタン）": "青木 郎", "男性アンサンブル1": "篤木 竜堂", "男性アンサンブル2": "濱中 湧大", "男性アンサンブル3": "成田 蔵人", "男性アンサンブル4": "佐々木 玲旺", "男性アンサンブル5": "渡邉 寛中", "男性アンサンブル6": "渡邉 寿宏", "男性アンサンブル7": "二村 誠俊", "男性アンサンブル8": "川畑 和寛", "男性アンサンブル9": "清川 昌", "男性アンサンブル10": "照沼 大樹", "男性アンサンブル11": "安東 翼", "男性アンサンブル12": "羽賀 惇大", "女性アンサンブル1": "斉藤 みも", "女性アンサンブル2": "渡辺 智佳", "女性アンサンブル3": "相原 茜", "女性アンサンブル4": "伊藤 瑛里子", "女性アンサンブル5": "岸田 実保", "女性アンサンブル6": "小島 光葉", "女性アンサンブル7": "浦山 遥"} },
+
+        // オペラ座の怪人
+        { work: "オペラ座の怪人", date: "2021-09-08", theater: "四季劇場「秋」", cast: {"オペラ座の怪人": "飯田 洋輔", "クリスティーヌ・ダーエ": "山本 紗衣", "ラウル・シャニュイ子爵": "加藤 迪", "カルロッタ・ジュディチェルリ": "河村 彩", "メグ・ジリー": "松尾 優", "マダム・ジリー": "木村 智秋", "ムッシュー・アンドレ": "増田 守人", "ムッシュー・フィルマン": "平良 交一", "ウバルド・ピアンジ": "山口 泰伸", "ムッシュー・レイエ": "雲田 隆弘", "ムッシュー・ルフェーブル": "勅使瓦 武志", "ジョセフ・ブケー": "田辺 容", "男性アンサンブル1": "高井 治", "男性アンサンブル2": "渡辺 吾郎", "男性アンサンブル3": "高舛 裕一", "男性アンサンブル4": "安田 楓汰", "男性アンサンブル5": "新井 克", "男性アンサンブル6": "松永 隆志", "男性アンサンブル7": "貞松 響", "女性アンサンブル1": "秋山 知子", "女性アンサンブル2": "藤原 遥香", "女性アンサンブル3": "清水 智咲子", "女性アンサンブル4": "小山 百合恵", "女性アンサンブル5": "中田 成美", "女性アンサンブル6": "荒巻 くるみ", "女性アンサンブル7": "藤本 典子", "女性アンサンブル8": "石田 真子", "女性アンサンブル9": "鮫嶋 美里", "女性アンサンブル10": "三島 瑞稀", "女性アンサンブル11": "林 明梨", "女性アンサンブル12": "宇佐美 舞"} },
+        { work: "オペラ座の怪人", date: "2021-10-13", theater: "四季劇場「秋」", cast: {"オペラ座の怪人": "岩城 雄太", "クリスティーヌ・ダーエ": "山本 紗衣", "ラウル・シャニュイ子爵": "光田 健一", "カルロッタ・ジュディチェルリ": "辻 奈々", "メグ・ジリー": "松尾 優", "マダム・ジリー": "戸田 愛子", "ムッシュー・アンドレ": "増田 守人", "ムッシュー・フィルマン": "村 俊英", "ウバルド・ピアンジ": "山口 泰伸", "ムッシュー・レイエ": "日浦 眞矩", "ムッシュー・ルフェーブル": "志村 要", "ジョセフ・ブケー": "村田 慶介", "男性アンサンブル1": "髙橋 祐樹", "男性アンサンブル2": "石川 敦貴", "男性アンサンブル3": "高舛 裕一", "男性アンサンブル4": "辻 雄飛", "男性アンサンブル5": "川畑 和寛", "男性アンサンブル6": "吉田 蓮", "男性アンサンブル7": "佐藤 圭一", "女性アンサンブル1": "杉山 由衣", "女性アンサンブル2": "結城 湊海", "女性アンサンブル3": "奥平 光音", "女性アンサンブル4": "小山 百合恵", "女性アンサンブル5": "鳥越 ゆみこ", "女性アンサンブル6": "小林 美沙希", "女性アンサンブル7": "堀江 美月", "女性アンサンブル8": "竹下 里香", "女性アンサンブル9": "鮫嶋 美里", "女性アンサンブル10": "三島 瑞稀", "女性アンサンブル11": "松岡 ゆめ", "女性アンサンブル12": "河津 るり子"} },
+        { work: "オペラ座の怪人", date: "2021-11-09", theater: "四季劇場「秋」", cast: {"オペラ座の怪人": "清水 大星", "クリスティーヌ・ダーエ": "山本 紗衣", "ラウル・シャニュイ子爵": "加藤 迪", "カルロッタ・ジュディチェルリ": "河村 彩", "メグ・ジリー": "五所 真理子", "マダム・ジリー": "戸田 愛子", "ムッシュー・アンドレ": "北澤 裕輔", "ムッシュー・フィルマン": "村 俊英", "ウバルド・ピアンジ": "永井 崇多宏", "ムッシュー・レイエ": "雲田 隆弘", "ムッシュー・ルフェーブル": "勅使瓦 武志", "ジョセフ・ブケー": "川原 信弘", "男性アンサンブル1": "高井 治", "男性アンサンブル2": "石川 敦貴", "男性アンサンブル3": "野村 数幾", "男性アンサンブル4": "宇都宮 千織", "男性アンサンブル5": "新井 克", "男性アンサンブル6": "吉田 蓮", "男性アンサンブル7": "佐藤 圭一", "女性アンサンブル1": "杉山 由衣", "女性アンサンブル2": "結城 湊海", "女性アンサンブル3": "小川 晃世", "女性アンサンブル4": "柳 葉奈", "女性アンサンブル5": "徳山 稚子", "女性アンサンブル6": "荒巻 くるみ", "女性アンサンブル7": "田中 紅音", "女性アンサンブル8": "竹下 里香", "女性アンサンブル9": "田原 真綾", "女性アンサンブル10": "澁谷 陽香", "女性アンサンブル11": "林 明梨", "女性アンサンブル12": "羽田 沙織"} },
+        { work: "オペラ座の怪人", date: "2024-05-10", theater: "KAAT神奈川芸術劇場", cast: {"オペラ座の怪人": "清水 大星", "クリスティーヌ・ダーエ": "海沼 千明", "ラウル・シャニュイ子爵": "岸 佳宏", "カルロッタ・ジュディチェルリ": "河村 彩", "メグ・ジリー": "森本 愛莉", "マダム・ジリー": "秋本 みな子", "ムッシュー・アンドレ": "見付 祐一", "ムッシュー・フィルマン": "塙 康平", "ウバルド・ピアンジ": "永井 崇多宏", "ムッシュー・レイエ": "日浦 眞矩", "ムッシュー・ルフェーブル": "勅使瓦 武志", "ジョセフ・ブケー": "高舛 裕一", "男性アンサンブル1": "野村 数幾", "男性アンサンブル2": "石川 敦貴", "男性アンサンブル3": "大家 征也", "男性アンサンブル4": "本杉 隆朗", "男性アンサンブル5": "篠田 裕介", "男性アンサンブル6": "西村 一輝", "男性アンサンブル7": "反中 洋介", "女性アンサンブル1": "北野 有希依", "女性アンサンブル2": "斉藤 みも", "女性アンサンブル3": "小川 晃世", "女性アンサンブル4": "菅原 あや乃", "女性アンサンブル5": "一来 多恵", "女性アンサンブル6": "玉置 ともか", "女性アンサンブル7": "佐野 奏実", "女性アンサンブル8": "小田島 礼奈", "女性アンサンブル9": "大河原 萌乃佳", "女性アンサンブル10": "三島 瑞稀", "女性アンサンブル11": "坂口 珠乃", "女性アンサンブル12": "中川 奈々美"} },
+
+        // キャッツ
+        { work: "キャッツ", date: "2020-08-30", theater: "キャッツ・シアター（品川区東五反田）", cast: {"グリザベラ": "織笠 里佳子", "オールドデュトロノミー": "飯村 泰志", "ジェリーロラム=グリドルボーン": "小野 実咲季", "アスパラガス=グロールタイガー": "正木 棟馬", "ジェニエニドッツ": "花田 菜美子", "ランペルティーザ": "山中 由貴", "マンカストラップ": "加藤 迪", "ディミータ": "松山 育恵", "ラム・タム・タガー": "上川 一哉", "ボンバルリーナ": "渡辺 智佳", "ミストフェリーズ": "草場 有輝", "シラバブ": "黒柳 安奈", "マンゴジェリー": "玉井 晴章", "タントミール": "間辺 朋美", "スキンブルシャンクス": "田邊 祐真", "ジェミマ": "円野 つくし", "コリコパット": "押田 柊", "ヴィクトリア": "引木 愛", "ランパスキャット": "分部 惇平", "カッサンドラ": "山田 祐里子", "カーバケッティ": "照沼 大樹", "ギルバート": "新庄 真一", "マキャヴィティ": "文永 傑", "タンブルブルータス": "田極 翼"} },
+        { work: "キャッツ", date: "2021-06-13", theater: "キャッツ・シアター（品川区東五反田）", cast: {"グリザベラ": "金原 美喜", "オールドデュトロノミー": "橋元 聖地", "ジェリーロラム=グリドルボーン": "奥平 光紀", "アスパラガス=グロールタイガー": "正木 棟馬", "ジェニエニドッツ": "笠原 光希", "ランペルティーザ": "片岡 英子", "マンカストラップ": "金本 泰潤", "ディミータ": "小野 日歌里", "ラム・タム・タガー": "上川 一哉", "ボンバルリーナ": "佐藤 友里江", "ミストフェリーズ": "横井 漱", "シラバブ": "藤原 加奈子", "マンゴジェリー": "森田 一輝", "タントミール": "野田 彩恵子", "スキンブルシャンクス": "小林 唯", "ジェミマ": "円野 つくし", "コリコパット": "一色 籠次郎", "ヴィクトリア": "引木 愛", "ランパスキャット": "河上 知輝", "カッサンドラ": "山田 祐里子", "カーバケッティ": "河津 修一", "ギルバート": "高野 佳基", "マキャヴィティ": "文永 傑", "タンブルブルータス": "岩崎 晋也"} },
+
+        // ゴースト＆レディ
+        { work: "ゴースト＆レディ", date: "2024-11-11", theater: "【配信】四季劇場「秋」", cast: {"フロー（フローレンス・ナイチンゲール）": "谷原 志音", "グレイ": "萩原 隆匡", "ジョン・ホール軍医長官": "野中 万寿夫", "デオン・ド・ボーモン": "岡村 美南", "アレックス・モートン": "寺元 健一郎", "エイミー": "町島 智子", "ウィリアム・ラッセル": "内田 圭", "ボブ": "平田 了祐", "ハーバード戦時大臣/男性アンサンブル": "飯村 和也", "ヴィクトリア女王/フローの母/女性アンサンブル": "近藤 きらら", "フィッツジェラルド/男性アンサンブル": "中田 雄太", "フローの姉/女性アンサンブル": "持田 紗希", "フローの父/男性アンサンブル": "平良 交一", "レディ・エリザベス/女性アンサンブル": "原田 真理", "メンジーズ/男性アンサンブル": "塚田 拓也", "シャーロット/女性アンサンブル": "潮﨑 亜耶", "男性アンサンブル1": "小林 清孝", "男性アンサンブル2": "木内 和真", "男性アンサンブル3": "政所 和行", "男性アンサンブル4": "照沼 大樹", "男性アンサンブル5": "吉田 功太郎", "女性アンサンブル1": "矢嗚 優花", "女性アンサンブル2": "清水 智紗子", "女性アンサンブル3": "町 真理子", "女性アンサンブル4": "奥平 光紀", "女性アンサンブル5": "織田 なつ美"} },
+        { work: "ゴースト＆レディ", date: "2025-07-04", theater: "名古屋四季劇場", cast: {"フロー（フローレンス・ナイチンゲール）": "谷原 志音", "グレイ": "萩原 隆匡", "ジョン・ホール軍医長官": "芝 清道", "デオン・ド・ボーモン": "岡村 美南", "アレックス・モートン": "寺元 健一郎", "エイミー": "柴本 優澄美", "ウィリアム・ラッセル": "内田 圭", "ボブ": "緒方 隆成", "ハーバード戦時大臣/男性アンサンブル": "飯村 和也", "ヴィクトリア女王/フローの母/女性アンサンブル": "近藤 きらら", "フィッツジェラルド/男性アンサンブル": "中田 雄太", "フローの姉/女性アンサンブル": "持田 紗希", "フローの父/男性アンサンブル": "平良 交一", "レディ・エリザベス/女性アンサンブル": "あべ ゆき", "メンジーズ/男性アンサンブル": "白石 拓也", "シャーロット/女性アンサンブル": "町 真理子", "男性アンサンブル1": "計倉 亘", "男性アンサンブル2": "権頭 雄太郎", "男性アンサンブル3": "政所 和行", "男性アンサンブル4": "照沼 大樹", "男性アンサンブル5": "田邊 祐真", "女性アンサンブル1": "大岡 紋", "女性アンサンブル2": "村田 繭菜", "女性アンサンブル3": "清水 智紗子", "女性アンサンブル4": "奥平 光紀", "女性アンサンブル5": "織田 なつ美"} },
+        { work: "ゴースト＆レディ", date: "2025-08-31", theater: "【配信】名古屋四季劇場", cast: {"フロー（フローレンス・ナイチンゲール）": "谷原 志音", "グレイ": "加藤 迪", "ジョン・ホール軍医長官": "瀧山 久志", "デオン・ド・ボーモン": "宮田 愛", "アレックス・モートン": "分部 惇平", "エイミー": "竹田 理央", "ウィリアム・ラッセル": "内田 圭", "ボブ": "菱山 亮祐", "ハーバード戦時大臣/男性アンサンブル": "飯村 和也", "ヴィクトリア女王/フローの母/女性アンサンブル": "近藤 きらら", "フィッツジェラルド/男性アンサンブル": "佐瀨 龍城", "フローの姉/女性アンサンブル": "菩堤 行", "フローの父/男性アンサンブル": "平良 交一", "レディ・エリザベス/女性アンサンブル": "あべ ゆき", "メンジーズ/男性アンサンブル": "黒田 大夢", "シャーロット/女性アンサンブル": "潮﨑 亜耶", "男性アンサンブル1": "小林 清孝", "男性アンサンブル2": "権頭 雄太郎", "男性アンサンブル3": "政所 和行", "男性アンサンブル4": "河上 知輝", "男性アンサンブル5": "田邊 祐真", "女性アンサンブル1": "矢嗚 優花", "女性アンサンブル2": "清水 智紗子", "女性アンサンブル3": "町 真理子", "女性アンサンブル4": "奥平 光紀", "女性アンサンブル5": "黒柳 安奈"} },
+        { work: "ゴースト＆レディ", date: "2026-05-09", theater: "大阪四季劇場", cast: {"フロー（フローレンス・ナイチンゲール）": "町島 智子", "グレイ": "萩原 隆匡", "ジョン・ホール軍医長官": "芝 清道", "デオン・ド・ボーモン": "宮田 愛", "アレックス・モートン": "寺元 健一郎", "エイミー": "柴本 優澄美", "ウィリアム・ラッセル": "内田 圭", "ボブ": "緒方 隆成", "ハーバード戦時大臣/男性アンサンブル": "飯村 和也", "ヴィクトリア女王/フローの母/女性アンサンブル": "鳥原 ゆきみ", "フィッツジェラルド/男性アンサンブル": "佐瀨 龍城", "フローの姉/女性アンサンブル": "菩堤 行", "フローの父/男性アンサンブル": "平良 交一", "レディ・エリザベス/女性アンサンブル": "原田 真理", "メンジーズ/男性アンサンブル": "黒田 大夢", "シャーロット/女性アンサンブル": "町 真理子", "男性アンサンブル1": "計倉 亘", "男性アンサンブル2": "権頭 雄太郎", "男性アンサンブル3": "政所 和行", "男性アンサンブル4": "河上 知輝", "男性アンサンブル5": "川村 英", "女性アンサンブル1": "大岡 紋", "女性アンサンブル2": "矢嗚 優花", "女性アンサンブル3": "竹田 理央", "女性アンサンブル4": "奥平 光紀", "女性アンサンブル5": "黒柳 安奈"} },
+        { work: "ゴースト＆レディ", date: "2026-05-17", theater: "【配信】大阪四季劇場", cast: {"フロー（フローレンス・ナイチンゲール）": "町島 智子", "グレイ": "萩原 隆匡", "ジョン・ホール軍医長官": "芝 清道", "デオン・ド・ボーモン": "宮田 愛", "アレックス・モートン": "寺元 健一郎", "エイミー": "柴本 優澄美", "ウィリアム・ラッセル": "内田 圭", "ボブ": "緒方 隆成", "ハーバード戦時大臣/男性アンサンブル": "飯村 和也", "ヴィクトリア女王/フローの母/女性アンサンブル": "鳥原 ゆきみ", "フィッツジェラルド/男性アンサンブル": "佐瀨 龍城", "フローの姉/女性アンサンブル": "菩堤 行", "フローの父/男性アンサンブル": "澁谷 智也", "レディ・エリザベス/女性アンサンブル": "原田 真理", "メンジーズ/男性アンサンブル": "黒田 大夢", "シャーロット/女性アンサンブル": "町 真理子", "男性アンサンブル1": "計倉 亘", "男性アンサンブル2": "権頭 雄太郎", "男性アンサンブル3": "政所 和行", "男性アンサンブル4": "河上 知輝", "男性アンサンブル5": "川村 英", "女性アンサンブル1": "大岡 紋", "女性アンサンブル2": "矢嗚 優花", "女性アンサンブル3": "竹田 理央", "女性アンサンブル4": "奥平 光紀", "女性アンサンブル5": "黒柳 安奈"} },
+
+        // ノートルダムの鐘
+        { work: "ノートルダムの鐘", date: "2023-07-15", theater: "四季劇場「秋」", cast: {"カジモド": "田中 彰孝", "フロロー": "芝 清道", "エスメラルダ": "山崎 遥香", "フィーバス": "加藤 迪", "クロパン": "白石 拓也", "男性アンサンブル1": "武藤 洸次", "男性アンサンブル2": "梅津 亮", "男性アンサンブル3": "今村 綱利", "男性アンサンブル4": "町田 兼一", "男性アンサンブル5": "川原 信弘", "男性アンサンブル6": "平良 交一", "男性アンサンブル7": "貞松 響", "男性アンサンブル8": "吉田 功太郎", "女性アンサンブル1": "岩城 あさみ", "女性アンサンブル2": "近藤 きらら", "女性アンサンブル3": "徳山 稚子", "女性アンサンブル4": "原田 真理", "男性クワイヤ1": "伊藤 力", "男性クワイヤ2": "土井 夏以", "男性クワイヤ3": "安田 楓汰", "男性クワイヤ4": "澤村 楽人", "男性クワイヤ5": "持木 悠", "男性クワイヤ6": "井上 隆司", "男性クワイヤ7": "橋元 聖地", "男性クワイヤ8": "和田 ひでき", "女性クワイヤ1": "小藤 恵理子", "女性クワイヤ2": "高居 洋子", "女性クワイヤ3": "瀧本 真己", "女性クワイヤ4": "葛葉 かな", "女性クワイヤ5": "梁瀬 彩加", "女性クワイヤ6": "川目 晴香", "女性クワイヤ7": "吉田 瑛美", "女性クワイヤ8": "北野 有希依"} },
+
+        // バケモノの子
+        { work: "バケモノの子", date: "2023-02-14", theater: "四季劇場「秋」", cast: {"熊徹": "田中 彰孝", "蓮/九太（青年）": "立崇 なおと", "猪王山": "田島 亨祐", "一郎彦（青年）": "菊池 俊", "多々良": "韓 盛治", "百秋坊": "味方 隆司", "二朗丸（青年）": "瀬下 喬弘", "宗師": "井上 智映子", "楓": "竹田 理央", "蓮の母": "時枝 里好", "蓮/九太（少年）": "土田 彪人", "一郎彦（少年）": "大橋 冬惟", "二朗丸（少年）": "佐藤 明莉", "蓮の父/男性アンサンブル": "小出 敏英", "男性アンサンブル1": "中村 伝", "男性アンサンブル2": "前田 睦貴", "男性アンサンブル3": "宮野 薫", "男性アンサンブル4": "丹下 博喜", "男性アンサンブル5": "内田 圭", "男性アンサンブル6": "千葉 真大", "男性アンサンブル7": "勝原 亮太", "男性アンサンブル8": "新庄 真一", "女性アンサンブル1": "小島 絵里衣", "女性アンサンブル2": "持田 紗希", "女性アンサンブル3": "新宮 有香子", "女性アンサンブル4": "田辺 恵都", "女性アンサンブル5": "八重沢 真美", "女性アンサンブル6": "横田 栞乃", "女性アンサンブル7": "小島 由夏", "女性アンサンブル8": "多田 毬奈"} },
+
+        // バック・トゥ・ザ・フューチャー
+        { work: "バック・トゥ・ザ・フューチャー", date: "2025-10-24", theater: "四季劇場「秋」", cast: {"マーティ・マクフライ": "立崇 なおと", "ドク・ブラウン": "阿久津 陽一郎", "ロレイン・ベインズ": "海沼 千明", "ジョージ・マクフライ": "塚田 拓也", "ビフ・タネン": "神永 東吾", "ゴールディ・ウィルソン": "ペ・ジェヨン", "ジェニファー・パーカー": "林 愛夏", "ストリックランド": "藤田 光之", "デイヴ・マクフライ": "柴田 鴻洋", "リンダ・マクフライ": "多田 毬奈", "男性アンサンブル1": "平田 了祐", "男性アンサンブル2": "筒井 圭児", "男性アンサンブル3": "横井 漱", "男性アンサンブル4": "桒原 駿", "男性アンサンブル5": "緑川 諒人", "男性アンサンブル6": "深堀 拓也", "女性アンサンブル1": "辻 茜", "女性アンサンブル2": "大橋 美絵", "女性アンサンブル3": "小坂 華加", "女性アンサンブル4": "福田 愛", "女性アンサンブル5": "佐野 奏実"} },
+        { work: "バック・トゥ・ザ・フューチャー", date: "2025-12-30", theater: "四季劇場「秋」", cast: {"マーティ・マクフライ": "立崇 なおと", "ドク・ブラウン": "野中 万寿夫", "ロレイン・ベインズ": "海沼 千明", "ジョージ・マクフライ": "斎藤 洋一郎", "ビフ・タネン": "神永 東吾", "ゴールディ・ウィルソン": "ペ・ジェヨン", "ジェニファー・パーカー": "竹内 華", "ストリックランド": "藤田 光之", "デイヴ・マクフライ": "柴田 鴻洋", "リンダ・マクフライ": "多田 毬奈", "男性アンサンブル1": "勇貴", "男性アンサンブル2": "筒井 圭児", "男性アンサンブル3": "紙谷 昇世", "男性アンサンブル4": "佐野 隼平", "男性アンサンブル5": "緑川 諒人", "男性アンサンブル6": "深堀 拓也", "女性アンサンブル1": "原口 明子", "女性アンサンブル2": "新宮 有香子", "女性アンサンブル3": "小坂 華加", "女性アンサンブル4": "福田 愛", "女性アンサンブル5": "佐野 奏実"} },
+
+        // 美女と野獣
+        { work: "美女と野獣", date: "2023-01-20", theater: "舞浜アンフィシアター", cast: {"ベル": "平田 愛咲", "ビースト": "金本 泰潤", "モリース": "澁谷 智也", "ガストン": "金久 烈", "ルフウ": "肥田 晃哉", "ルミエール": "大木 智貴", "コッグスワース": "吉賀 陶馬ワイス", "ミセス・ポット": "森川 温子", "マダム・ブーシュ": "戸田 愛子", "バベット": "朴 悠那", "チップ": "田中 悠翔", "男性アンサンブル1": "山口 優太", "男性アンサンブル2": "水原 俊", "男性アンサンブル3": "吉岡 遊音", "男性アンサンブル4": "大脇 史門", "男性アンサンブル5": "後藤 旭", "男性アンサンブル6": "玉井 晴章", "男性アンサンブル7": "勇貴", "男性アンサンブル8": "辻 雄飛", "女性アンサンブル1": "原田 美欧", "女性アンサンブル2": "佐野 奏実", "女性アンサンブル3": "堀江 美月", "女性アンサンブル4": "三島 瑞稀", "女性アンサンブル5": "嶋本 優美子", "女性アンサンブル6": "矢嗚 優花", "女性アンサンブル7": "原田 千弘", "女性アンサンブル8": "引木 愛"} },
+        { work: "美女と野獣", date: "2023-09-27", theater: "舞浜アンフィシアター", cast: {"ベル": "平木 萌子", "ビースト": "清水 大星", "モリース": "澁谷 智也", "ガストン": "金久 烈", "ルフウ": "肥田 晃哉", "ルミエール": "大木 智貴", "コッグスワース": "雲田 隆弘", "ミセス・ポット": "戸田 愛子", "マダム・ブーシュ": "秋山 知子", "バベット": "杉野 早季", "チップ": "田中 悠翔", "男性アンサンブル1": "山口 優太", "男性アンサンブル2": "水原 俊", "男性アンサンブル3": "吉岡 遊音", "男性アンサンブル4": "大脇 史門", "男性アンサンブル5": "上野山 僚太", "男性アンサンブル6": "玉井 晴章", "男性アンサンブル7": "神田 瞬", "男性アンサンブル8": "二村 誠俊", "女性アンサンブル1": "大中 ゆかり", "女性アンサンブル2": "佐野 奏実", "女性アンサンブル3": "中田 成美", "女性アンサンブル4": "岩井 千秋", "女性アンサンブル5": "村田 繭菜", "女性アンサンブル6": "矢嗚 優花", "女性アンサンブル7": "原田 千弘", "女性アンサンブル8": "関野 ひとみ"} },
+
+        // ひばり
+        { work: "ひばり", date: "2023-12-28", theater: "自由劇場（浜松町）", cast: {"ジャンヌ": "五所 真理子", "コーション": "道口 瑞之", "宗教裁判所大審問官": "味方 隆司", "主任検事": "飯村 和也", "ラヴニュ": "鈴本 務", "ウォーリック伯": "阿久津 陽一郎", "シャルル七世": "田邊 真也", "王妃": "小林 由希子", "アニエス": "宮田 愛", "ヨランド王太后": "中野 今日子", "ランス大司教": "星野 元信", "ラ・トレムイ": "福島 武臣", "ラ・イール": "金久 烈", "ボードリクール": "勅使瓦 武志", "ブドゥース": "正木 棟馬", "ジャンヌの父親": "林 和男", "ジャンヌの母親": "大橋 伸予", "ジャンヌの兄": "戸高 圭介", "死刑執行人": "木内 和真", "シャルルの小姓": "近藤 合歓", "貴婦人たち1": "佐和 由梨", "貴婦人たち2": "秋山 知子", "貴婦人たち3": "中川 奈々美", "貴婦人たち4": "徳山 稚子", "貴婦人たち5": "山崎 遥香", "貴婦人たち6": "柳 葉奈", "英国兵士他1": "鈴木 貴雅", "英国兵士他2": "橋岡 未浪", "英国兵士他3": "香取 直矢"} },
+
+        // マンマ・ミーア！
+        { work: "マンマ・ミーア！", date: "2026-07-03", theater: "KAAT神奈川芸術劇場", cast: {"ドナ・シェリダン": "江畑 晶慧", "ソフィ・シェリダン": "三平 果歩", "ターニャ": "八重沢 真美", "ロージー": "久居 史子", "サム・カーマイケル": "梅津 亮", "ハリー・ブライト": "岩城 雄太", "ビル・オースティン": "脇坂 真人", "スカイ": "橘 友希", "アリ": "恵都", "リサ": "三島 瑞稀", "エディ": "ﾊﾝﾄﾞ ｺ ｱｸｱﾘｵ", "ペッパー": "菊池 俊", "男性アンサンブル1": "島村 幸太", "男性アンサンブル2": "ｶｲｻｰ ﾀﾃｨｸ", "男性アンサンブル3": "黒川 輝", "男性アンサンブル4": "佐橋 秀明", "男性アンサンブル5": "森下 竜平", "男性アンサンブル6": "清水 誠哉", "男性アンサンブル7": "竹ノ下 風夢", "女性アンサンブル1": "冨重 百音", "女性アンサンブル2": "海宝 あかね", "女性アンサンブル3": "刀根 史夏", "女性アンサンブル4": "宮澤 聖礼", "女性アンサンブル5": "梨乃", "女性アンサンブル6": "北中 芹佳", "女性アンサンブル7": "守山 ちひろ"} },
+
+        // ライオンキング
+        { work: "ライオンキング", date: "2022-03-29", theater: "有明四季劇場", cast: {"ラフィキ": "鈴木 釉佳之", "ムファサ": "宇龍 真吾", "ザズ": "井上 隆司", "スカー": "飯村 和也", "ヤングシンバ": "堀 隼二郎", "ヤングナラ": "千坂 凛", "シェンジ": "海野 愛理", "バンザイ": "池田 英治", "エド": "川野 翔", "ティモン": "黒川 輝", "プンバァ": "福島 武臣", "シンバ": "山下 啓太", "ナラ": "朴 悠那", "サラビ": "市川 友貴", "男性アンサンブル1": "清水 誠哉", "男性アンサンブル2": "五十嵐 春", "男性アンサンブル3": "土井 夏以", "男性アンサンブル4": "秋山 一哉", "男性アンサンブル5": "鹿内 大夢", "男性アンサンブル6": "間 聖次朗", "男性アンサンブル7": "佐藤 幸治", "男性アンサンブル8": "永田 健太", "男性アンサンブル9": "羽賀 悠仁", "男性アンサンブル10": "廣野 圭亮", "男性アンサンブル11": "前田 員範", "男性アンサンブル12": "勇貴", "女性アンサンブル1": "海宝 あかね", "女性アンサンブル2": "志賀 ひかる", "女性アンサンブル3": "森田 江里佳", "女性アンサンブル4": "坂井 菜穂", "女性アンサンブル5": "福井 麻起子", "女性アンサンブル6": "小林 由希子", "女性アンサンブル7": "田川 光希", "女性アンサンブル8": "若松 小百合", "女性アンサンブル9": "原田 美欧", "女性アンサンブル10": "沙耶", "女性アンサンブル11": "古木 瞳", "女性アンサンブル12": "吉村 侑姫"} }
+    ];
+
+    // ローカルストレージからのデータ読み込み（初回は初期データを保存）
+    let historyData = JSON.parse(localStorage.getItem('shiki_history')) || initialHistory;
+    if (!localStorage.getItem('shiki_history')) {
+        localStorage.setItem('shiki_history', JSON.stringify(historyData));
+    }
+
+    // 初期化処理
+    window.onload = function() {
+        initWorkSelectors();
+        renderHistory();
+    };
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        if (tabName === 'list') {
+            document.getElementById('tab-list').classList.add('active');
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        } else {
+            document.getElementById('tab-add').classList.add('active');
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        }
+    }
+
+    function initWorkSelectors() {
+        const works = Object.keys(masterRoles);
+        
+        // フィルター用セレクトボックス
+        const filterSelect = document.getElementById('filter-work');
+        // 登録用セレクトボックス
+        const addSelect = document.getElementById('rec-work');
+
+        works.forEach(work => {
+            filterSelect.add(new Option(work, work));
+            addSelect.add(new Option(work, work));
+        });
+    }
+
+    // 登録画面で作品が選択されたとき、その役名入力欄を動的に生成する
+    function updateCastInputs() {
+        const work = document.getElementById('rec-work').value;
+        const container = document.getElementById('dynamic-cast-inputs');
+        
+        if (!work || !masterRoles[work]) {
+            container.innerHTML = '<p style="color: #777; font-size: 0.85rem;">作品を選択すると役名が表示されます。</p>';
+            return;
         }
 
-        function onCastInput(input) {
-            const val = input.value.trim().toLowerCase();
-            const box = input.nextElementSibling;
-            
-            let matches = masterCasts;
-            if(val !== '') {
-                matches = masterCasts.filter(c => c.name.toLowerCase().includes(val) || (c.kana && c.kana.toLowerCase().includes(val)));
-            }
+        container.innerHTML = '';
+        masterRoles[work].forEach(role => {
+            const row = document.createElement('div');
+            row.className = 'cast-input-row';
+            row.innerHTML = `
+                <div style="width: 140px; font-size: 0.8rem; font-weight: bold; color: #4a5568;">${role}</div>
+                <input type="text" class="cast-name-input" data-role="${role}" placeholder="キャスト名">
+            `;
+            container.appendChild(row);
+        });
+    }
 
-            if(matches.length === 0) {
-                box.classList.add('hidden');
-                return;
-            }
+    // 新規レコードの保存
+    function saveRecord(e) {
+        e.preventDefault();
+        const work = document.getElementById('rec-work').value;
+        const date = document.getElementById('rec-date').value;
+        const theater = document.getElementById('rec-theater').value;
 
-            let html = '';
-            matches.slice(0, 15).forEach(c => {
-                html += `<div class="suggestion-item" tabindex="0" onclick="selectCast(this, '${c.name}')">${c.name} ${c.kana ? '('+c.kana+')' : ''}</div>`;
-            });
-            box.innerHTML = html;
-            box.classList.remove('hidden');
-        }
-
-        function selectCast(item, name) {
-            const wrapper = item.closest('.autocomplete-wrapper');
-            const input = wrapper.querySelector('input');
-            const box = wrapper.querySelector('.suggestions-box');
-            input.value = name;
-            box.classList.add('hidden');
-        }
-
-        document.addEventListener('click', (e) => {
-            if(!e.target.closest('.autocomplete-wrapper')) {
-                document.querySelectorAll('.suggestions-box').forEach(b => b.classList.add('hidden'));
+        const castInputs = document.querySelectorAll('.cast-name-input');
+        const castObj = {};
+        castInputs.forEach(input => {
+            if (input.value.trim() !== "") {
+                castObj[input.dataset.role] = input.value.trim();
             }
         });
 
-        async function saveRecord(e) {
-            e.preventDefault();
-            const editId = document.getElementById('edit-record-id').value;
-            const date = document.getElementById('rec-date').value;
-            const work = document.getElementById('rec-work').value;
-            const theater = document.getElementById('rec-theater').value;
-            const companion = document.getElementById('rec-companion').value;
+        const newRecord = { work, date, theater, cast: castObj };
+        historyData.unshift(newRecord); // 先頭に追加
+        localStorage.setItem('shiki_history', JSON.stringify(historyData));
 
-            const castAssignments = {};
-            document.querySelectorAll('.cast-input-row').forEach(row => {
-                const label = row.querySelector('label').innerText;
-                const val = row.querySelector('input').value.trim();
-                if(val) {
-                    castAssignments[label] = val;
-                }
-            });
+        // フォームリセット
+        document.getElementById('add-form').reset();
+        document.getElementById('dynamic-cast-inputs').innerHTML = '<p style="color: #777; font-size: 0.85rem;">作品を選択すると役名が表示されます。</p>';
+        
+        // 一覧画面へ移動して再描画
+        switchTab('list');
+        renderHistory();
+        alert('観劇履歴を保存しました！');
+    }
 
-            const recordId = editId ? editId : 'rec_' + Date.now();
-            const newRecord = {
-                id: recordId,
-                date,
-                work,
-                theater,
-                companion,
-                casts: castAssignments
-            };
+    // 履歴一覧の描画
+    function renderHistory() {
+        const container = document.getElementById('history-container');
+        const filterWork = document.getElementById('filter-work').value;
+        
+        container.innerHTML = '';
 
-            if(editId) {
-                viewingRecords = viewingRecords.map(r => r.id === editId ? newRecord : r);
-            } else {
-                viewingRecords.push(newRecord);
+        // 日付順（新しい順）にソート
+        const sortedData = [...historyData].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const filtered = sortedData.filter(item => {
+            if (filterWork && item.work !== filterWork) return false;
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="card" style="text-align: center; color: #777;">該当する観劇履歴はありません。</div>';
+            return;
+        }
+
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            let castHtml = '';
+            for (const [role, name] of Object.entries(item.cast || {})) {
+                castHtml += `<div class="cast-item"><b>${role}</b>: ${name}</div>`;
             }
 
-            viewingRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            await saveCloudData();
-            initApp();
-            document.getElementById('record-form').reset();
-            document.getElementById('edit-record-id').value = '';
-            document.getElementById('submit-btn').innerText = 'この内容で登録する';
-            document.getElementById('cancel-edit-btn').classList.add('hidden');
-            switchScreen('timeline', document.querySelectorAll('.nav-bar .nav-item')[2]);
-        }
-
-        function renderWorksSummary() {
-            const container = document.getElementById('works-summary-list');
-            if(!container) return;
-
-            const counts = {};
-            masterWorks.forEach(w => {
-                counts[w] = { theater: 0, stream: 0 };
-            });
-
-            viewingRecords.forEach(r => {
-                if(!counts[r.work]) {
-                    counts[r.work] = { theater: 0, stream: 0 };
-                }
-                if(r.work.startsWith('【配信】') || (r.theater && r.theater.includes('配信'))) {
-                    counts[r.work].stream++;
-                } else {
-                    counts[r.work].theater++;
-                }
-            });
-
-            let html = '';
-            masterWorks.forEach(work => {
-                const c = counts[work] || { theater: 0, stream: 0 };
-                const total = c.theater + c.stream;
-                html += `
-                    <div class="list-item" onclick="showWorkDetail('${work}')" style="cursor: pointer;">
-                        <div>
-                            <strong>${work}</strong>
-                            <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">劇場: ${c.theater}回 / 配信: ${c.stream}回</div>
-                        </div>
-                        <div style="font-weight: bold; color: var(--primary-color);">合計 ${total}回 〉</div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        function showWorkDetail(workName) {
-            const matched = viewingRecords.filter(r => r.work === workName);
-            let body = `<p><strong>${workName}</strong> の観劇履歴（全${matched.length}件）</p><hr style="margin:10px 0;">`;
-            if(matched.length === 0) {
-                body += `<p style="color:#777;">まだ観劇記録がありません。</p>`;
-            } else {
-                matched.forEach(r => {
-                    body += `<div style="margin-bottom:8px; font-size:0.9rem;"><strong>${r.date}</strong> (${r.theater})</div>`;
-                });
-            }
-            openModal(workName + ' の詳細', body);
-        }
-
-        function renderTimeline() {
-            const container = document.getElementById('timeline-list-container');
-            if(!container) return;
-
-            if(viewingRecords.length === 0) {
-                container.innerHTML = `<p style="color: #777; font-size: 0.85rem; text-align:center; padding:20px;">観劇記録がまだありません。</p>`;
-                return;
-            }
-
-            let html = '';
-            viewingRecords.forEach(r => {
-                let castHtml = '';
-                for(let role in r.casts) {
-                    castHtml += `<div><span style="color:#666;">${role}:</span> <strong>${r.casts[role]}</strong></div>`;
-                }
-
-                html += `
-                    <div class="card" style="border-left: 4px solid var(--primary-color); margin-bottom:10px; position:relative;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div>
-                                <span style="font-size:0.75rem; background:#eef2f7; padding:2px 6px; border-radius:4px; font-weight:bold; color:var(--primary-color);">${r.date}</span>
-                                <h4 style="margin-top:6px; color:var(--primary-color);">${r.work}</h4>
-                                <div style="font-size:0.85rem; color:#555; margin-top:2px;">📍 ${r.theater} ${r.companion ? ' / 同行者: '+r.companion : ''}</div>
-                            </div>
-                            <div>
-                                <button class="small" onclick="editRecord('${r.id}')" style="background:#2980b9; margin-right:4px;">編集</button>
-                                <button class="small delete-btn" onclick="deleteRecord('${r.id}')">削除</button>
-                            </div>
-                        </div>
-                        ${castHtml ? `<div class="detail-box">${castHtml}</div>` : ''}
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        function editRecord(id) {
-            const r = viewingRecords.find(item => item.id === id);
-            if(!r) return;
-
-            switchScreen('home', document.querySelectorAll('.nav-bar .nav-item')[0]);
-            document.getElementById('edit-record-id').value = r.id;
-            document.getElementById('rec-date').value = r.date;
-            document.getElementById('rec-work').value = r.work;
-            renderDynamicCastInputs();
-            document.getElementById('rec-theater').value = r.theater;
-            document.getElementById('rec-companion').value = r.companion || '';
-
-            if(r.casts) {
-                document.querySelectorAll('.cast-input-row').forEach(row => {
-                    const label = row.querySelector('label').innerText;
-                    if(r.casts[label]) {
-                        row.querySelector('input').value = r.casts[label];
-                    }
-                });
-            }
-
-            document.getElementById('submit-btn').innerText = '変更を保存する';
-            document.getElementById('cancel-edit-btn').classList.remove('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function cancelEdit() {
-            document.getElementById('record-form').reset();
-            document.getElementById('edit-record-id').value = '';
-            document.getElementById('submit-btn').innerText = 'この内容で登録する';
-            document.getElementById('cancel-edit-btn').classList.add('hidden');
-            renderDynamicCastInputs();
-        }
-
-        async function deleteRecord(id) {
-            if(!confirm('この観劇記録を削除してもよろしいですか？')) return;
-            viewingRecords = viewingRecords.filter(r => r.id !== id);
-            await saveCloudData();
-            initApp();
-        }
-
-        function renderCastsList() {
-            const container = document.getElementById('cast-list-container');
-            const keyword = document.getElementById('search-input').value.trim().toLowerCase();
-            if(!container) return;
-
-            let filtered = masterCasts;
-            if(keyword !== '') {
-                filtered = masterCasts.filter(c => {
-                    if(currentSearchFilter === 'name') {
-                        return c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword));
-                    } else if(currentSearchFilter === 'work') {
-                        return c.intro && c.intro.toLowerCase().includes(keyword);
-                    } else if(currentSearchFilter === 'role') {
-                        return c.intro && c.intro.toLowerCase().includes(keyword);
-                    } else {
-                        return c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword)) || (c.intro && c.intro.toLowerCase().includes(keyword));
-                    }
-                });
-            }
-
-            if(filtered.length === 0) {
-                container.innerHTML = `<p style="color: #777; font-size: 0.85rem; text-align:center; padding:15px;">該当するキャストがいません。</p>`;
-                return;
-            }
-
-            let html = '';
-            filtered.forEach(c => {
-                html += `
-                    <div class="list-item">
-                        <div>
-                            <strong>${c.name}</strong> ${c.kana ? '<span style="font-size:0.8rem; color:#777;">('+c.kana+')</span>' : ''}
-                            <div style="font-size:0.8rem; color:#666; margin-top:2px;">${c.intro || '情報なし'}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
-        }
-
-        function setSearchFilter(filter, btn) {
-            currentSearchFilter = filter;
-            document.querySelectorAll('.search-filters button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterCasts();
-        }
-
-        function filterCasts() {
-            renderCastsList();
-        }
-
-        function renderSettingsUI() {
-            const workList = document.getElementById('work-tag-list');
-            if(workList) {
-                let html = '';
-                masterWorks.forEach(w => {
-                    html += `<div class="item-tag"><span>${w}</span><button class="delete-btn" onclick="deleteMasterWork('${w}')">削除</button></div>`;
-                });
-                workList.innerHTML = html;
-            }
-
-            const theaterList = document.getElementById('theater-tag-list');
-            if(theaterList) {
-                let html = '';
-                masterTheaters.forEach(t => {
-                    html += `<div class="item-tag"><span>${t}</span><button class="delete-btn" onclick="deleteMasterTheater('${t}')">削除</button></div>`;
-                });
-                theaterList.innerHTML = html;
-            }
-
-            renderRoleSettings();
-        }
-
-        function renderRoleSettings() {
-            const targetSelect = document.getElementById('role-target-work');
-            const roleList = document.getElementById('role-tag-list');
-            if(!targetSelect || !roleList) return;
-
-            const selectedWork = targetSelect.value || masterWorks[0];
-            const roles = masterRoles[selectedWork] || [];
-
-            let html = '';
-            roles.forEach((r, idx) => {
-                html += `<div class="item-tag"><span>${r}</span><button class="delete-btn" onclick="deleteMasterRole('${selectedWork}', ${idx})">削除</button></div>`;
-            });
-            roleList.innerHTML = html;
-        }
-
-        async function addMasterWork() {
-            const input = document.getElementById('new-work-input');
-            const val = input.value.trim();
-            if(!val) return;
-            if(masterWorks.includes(val)) {
-                alert('すでに登録されています');
-                return;
-            }
-            masterWorks.push(val);
-            masterRoles[val] = [];
-            input.value = '';
-            await saveCloudData();
-            initApp();
-        }
-
-        function handleWorkKeydown(e) {
-            if(e.key === 'Enter') addMasterWork();
-        }
-
-        async function deleteMasterWork(work) {
-            if(!confirm(`作品「${work}」を削除しますか？`)) return;
-            masterWorks = masterWorks.filter(w => w !== work);
-            delete masterRoles[work];
-            await saveCloudData();
-            initApp();
-        }
-
-        async function addMasterTheater() {
-            const input = document.getElementById('new-theater-input');
-            const val = input.value.trim();
-            if(!val) return;
-            if(masterTheaters.includes(val)) {
-                alert('すでに登録されています');
-                return;
-            }
-            masterTheaters.push(val);
-            input.value = '';
-            await saveCloudData();
-            initApp();
-        }
-
-        function handleTheaterKeydown(e) {
-            if(e.key === 'Enter') addMasterTheater();
-        }
-
-        async function deleteMasterTheater(theater) {
-            if(!confirm(`劇場「${theater}」を削除しますか？`)) return;
-            masterTheaters = masterTheaters.filter(t => t !== theater);
-            await saveCloudData();
-            initApp();
-        }
-
-        async function addMasterRole() {
-            const targetSelect = document.getElementById('role-target-work');
-            const input = document.getElementById('new-role-input');
-            const work = targetSelect.value;
-            const val = input.value.trim();
-            if(!work || !val) return;
-
-            if(!masterRoles[work]) masterRoles[work] = [];
-            if(masterRoles[work].includes(val)) {
-                alert('すでに登録されています');
-                return;
-            }
-            masterRoles[work].push(val);
-            input.value = '';
-            await saveCloudData();
-            initApp();
-            targetSelect.value = work;
-        }
-
-        function handleRoleKeydown(e) {
-            if(e.key === 'Enter') addMasterRole();
-        }
-
-        async function deleteMasterRole(work, idx) {
-            if(!confirm('この役名を削除しますか？')) return;
-            masterRoles[work].splice(idx, 1);
-            await saveCloudData();
-            initApp();
-            document.getElementById('role-target-work').value = work;
-            renderRoleSettings();
-        }
-
-        async function resetToDefaultData() {
-            if(!confirm('本当に初期データにリセットしますか？これまでの登録データが初期化されます。')) return;
-            masterWorks = [...defaultWorks];
-            masterTheaters = [...defaultTheaters];
-            masterRoles = JSON.parse(JSON.stringify(defaultRoles));
-            masterCasts = JSON.parse(JSON.stringify(defaultCasts));
-            viewingRecords = [];
-            await saveCloudData();
-            initApp();
-            alert('初期データにリセットしました。');
-        }
-
-        function openModal(title, bodyHtml) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalBody').innerHTML = bodyHtml;
-            document.getElementById('detailModal').style.display = 'flex';
-        }
-
-        function closeModal() {
-            document.getElementById('detailModal').style.display = 'none';
-        }
-    </script>
+            card.innerHTML = `
+                <div class="history-header">${item.work}</div>
+                <div class="history-details">観劇日: ${item.date} ｜ 劇場: ${item.theater}</div>
+                <div class="cast-list-preview">
+                    ${castHtml}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+</script>
 </body>
 </html>
