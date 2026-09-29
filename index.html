@@ -87,7 +87,7 @@
         .nav-item.active { color: #1b263b; font-weight: bold; }
         .nav-item div { font-size: 1.2rem; margin-bottom: 2px; }
 
-        .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .detail-box { background: #fafbfc; border-left: 4px solid var(--accent-color); padding: 12px; margin-top: 8px; font-size: 0.9rem; border-radius: 0 6px 6px 0; }
         
         .item-tag-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -108,6 +108,11 @@
         .modal-content { background: #fff; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: #777; cursor: pointer; width: auto; padding: 0; }
+        
+        .tab-container { display: flex; gap: 5px; margin-top: 8px; margin-bottom: 8px; }
+        .tab-btn { background: #e0e0e0; color: #333; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; width: auto; font-weight: normal; }
+        .tab-btn.active { background: var(--primary-color); color: white; font-weight: bold; }
+        .clickable-cast { color: var(--primary-color); text-decoration: underline; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -143,11 +148,15 @@
                     </div>
                     <div class="form-group">
                         <label>作品名（配信の場合は先頭に「【配信】」をつけてください）</label>
-                        <select id="rec-work" onchange="onWorkSelected()" required></select>
+                        <select id="rec-work" onchange="onWorkSelected()" required>
+                            <option value="">選択してください</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>劇場名</label>
-                        <select id="rec-theater" required></select>
+                        <select id="rec-theater" required>
+                            <option value="">選択してください</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>同行者</label>
@@ -191,13 +200,11 @@
                 <div class="search-filters">
                     <button class="active" onclick="setSearchFilter('all', this)">すべて</button>
                     <button onclick="setSearchFilter('name', this)">キャスト名</button>
-                    <button onclick="setSearchFilter('work', this)">作品名</button>
-                    <button onclick="setSearchFilter('role', this)">役名</button>
                 </div>
                 <input type="text" id="search-input" placeholder="フリーワードで検索" oninput="filterCasts()">
             </div>
             <div class="card">
-                <h3 style="color: var(--primary-color); margin-bottom: 10px;">👥 キャスト一覧</h3>
+                <h3 style="color: var(--primary-color); margin-bottom: 10px;">👥 キャスト一覧（タップして詳細・編集）</h3>
                 <div id="cast-list-container"></div>
             </div>
         </div>
@@ -290,7 +297,7 @@
         let masterWorks = [...defaultWorks];
         let masterTheaters = [...defaultTheaters];
         let masterRoles = JSON.parse(JSON.stringify(defaultRoles));
-        let masterCasts = []; // 観劇登録時に入力されたキャストが自動蓄積される仕組み
+        let masterCasts = []; 
         let viewingRecords = [];
         let currentSearchFilter = 'all';
 
@@ -371,7 +378,7 @@
             selects.forEach(select => {
                 if(!select) return;
                 const currentVal = select.value;
-                select.innerHTML = '';
+                select.innerHTML = '<option value="">選択してください</option>';
                 masterWorks.forEach(work => {
                     const opt = document.createElement('option');
                     opt.value = work;
@@ -389,7 +396,7 @@
             const select = document.getElementById('rec-theater');
             if(!select) return;
             const currentVal = select.value;
-            select.innerHTML = '';
+            select.innerHTML = '<option value="">選択してください</option>';
             masterTheaters.forEach(theater => {
                 const opt = document.createElement('option');
                 opt.value = theater;
@@ -411,8 +418,12 @@
             if(!container || !workSelect) return;
 
             const selectedWork = workSelect.value;
-            const roles = masterRoles[selectedWork] || [];
+            if(!selectedWork) {
+                container.innerHTML = `<p style="color: #777; font-size: 0.85rem;">作品を選択すると役名が表示されます。</p>`;
+                return;
+            }
 
+            const roles = masterRoles[selectedWork] || [];
             if(roles.length === 0) {
                 container.innerHTML = `<p style="color: #777; font-size: 0.85rem;">この作品に登録された役名がありません。「設定」から追加してください。</p>`;
                 return;
@@ -439,7 +450,7 @@
             
             let matches = masterCasts;
             if(val !== '') {
-                matches = masterCasts.filter(c => c.name.toLowerCase().includes(val));
+                matches = masterCasts.filter(c => c.name.toLowerCase().includes(val) || (c.kana && c.kana.toLowerCase().includes(val)));
             }
 
             if(matches.length === 0) {
@@ -449,7 +460,7 @@
 
             let html = '';
             matches.slice(0, 15).forEach(c => {
-                html += `<div class="suggestion-item" tabindex="0" onclick="selectCast(this, '${c.name}')">${c.name}</div>`;
+                html += `<div class="suggestion-item" tabindex="0" onclick="selectCast(this, '${c.name}')">${c.name} ${c.kana ? '('+c.kana+')' : ''}</div>`;
             });
             box.innerHTML = html;
             box.classList.remove('hidden');
@@ -477,15 +488,27 @@
             const theater = document.getElementById('rec-theater').value;
             const companion = document.getElementById('rec-companion').value;
 
+            if(!work || !theater) {
+                alert('作品名と劇場名を選択してください。');
+                return;
+            }
+
             const castAssignments = {};
             document.querySelectorAll('.cast-input-row').forEach(row => {
                 const label = row.querySelector('label').innerText;
                 const val = row.querySelector('input').value.trim();
                 if(val) {
                     castAssignments[label] = val;
-                    // 入力されたキャストをマスターに自動追加（重複なし）
+                    // 新規キャストの場合は自動でキャストマスターに登録
                     if(!masterCasts.some(c => c.name === val)) {
-                        masterCasts.push({ name: val, intro: work + '：' + label });
+                        masterCasts.push({
+                            name: val,
+                            kana: '',
+                            birth: '',
+                            age: '',
+                            joined: '',
+                            intro: ''
+                        });
                     }
                 }
             });
@@ -542,7 +565,7 @@
                 const c = counts[work] || { theater: 0, stream: 0 };
                 const total = c.theater + c.stream;
                 html += `
-                    <div class="list-item" onclick="showWorkDetail('${work}')" style="cursor: pointer;">
+                    <div class="list-item" onclick="showWorkDetail('${work}')">
                         <div>
                             <strong>${work}</strong>
                             <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">劇場: ${c.theater}回 / 配信: ${c.stream}回</div>
@@ -561,7 +584,16 @@
                 body += `<p style="color:#777;">まだ観劇記録がありません。</p>`;
             } else {
                 matched.forEach(r => {
-                    body += `<div style="margin-bottom:8px; font-size:0.9rem;"><strong>${r.date}</strong> (${r.theater})</div>`;
+                    let castSummary = [];
+                    for(let role in r.casts) {
+                        castSummary.push(`${role}: ${r.casts[role]}`);
+                    }
+                    body += `
+                        <div style="margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #eee; font-size:0.9rem;">
+                            <strong>${r.date}</strong> (${r.theater}) ${r.companion ? '/ 同行者: '+r.companion : ''}
+                            <div style="font-size:0.8rem; color:#555; margin-top:4px;">${castSummary.join(' / ')}</div>
+                        </div>
+                    `;
                 });
             }
             openModal(workName + ' の詳細', body);
@@ -577,10 +609,18 @@
             }
 
             let html = '';
-            viewingRecords.forEach(r => {
-                let castHtml = '';
+            viewingRecords.forEach((r, index) => {
+                let roles = Object.keys(r.casts);
+                let topRoles = roles.slice(0, 3);
+                
+                let topCastHtml = '';
+                topRoles.forEach(role => {
+                    topCastHtml += `<div><span style="color:#666;">${role}:</span> <strong class="clickable-cast" onclick="openCastDetail('${r.casts[role]}')">${r.casts[role]}</strong></div>`;
+                });
+
+                let allCastHtml = '';
                 for(let role in r.casts) {
-                    castHtml += `<div><span style="color:#666;">${role}:</span> <strong>${r.casts[role]}</strong></div>`;
+                    allCastHtml += `<div><span style="color:#666;">${role}:</span> <strong class="clickable-cast" onclick="openCastDetail('${r.casts[role]}')">${r.casts[role]}</strong></div>`;
                 }
 
                 html += `
@@ -596,11 +636,41 @@
                                 <button class="small delete-btn" onclick="deleteRecord('${r.id}')">削除</button>
                             </div>
                         </div>
-                        ${castHtml ? `<div class="detail-box">${castHtml}</div>` : ''}
+
+                        <div class="tab-container">
+                            <button class="tab-btn active" id="tab-top-${index}" onclick="switchTimelineTab(${index}, 'top')">主要キャスト</button>
+                            <button class="tab-btn" id="tab-all-${index}" onclick="switchTimelineTab(${index}, 'all')">キャスト全体 (${roles.length})</button>
+                        </div>
+
+                        <div id="cast-view-top-${index}" class="detail-box">
+                            ${topCastHtml || '<span style="color:#777;">キャスト登録なし</span>'}
+                        </div>
+                        <div id="cast-view-all-${index}" class="detail-box hidden">
+                            ${allCastHtml || '<span style="color:#777;">キャスト登録なし</span>'}
+                        </div>
                     </div>
                 `;
             });
             container.innerHTML = html;
+        }
+
+        function switchTimelineTab(index, mode) {
+            const topBox = document.getElementById(`cast-view-top-${index}`);
+            const allBox = document.getElementById(`cast-view-all-${index}`);
+            const topBtn = document.getElementById(`tab-top-${index}`);
+            const allBtn = document.getElementById(`tab-all-${index}`);
+
+            if(mode === 'top') {
+                topBox.classList.remove('hidden');
+                allBox.classList.add('hidden');
+                topBtn.classList.add('active');
+                allBtn.classList.remove('active');
+            } else {
+                topBox.classList.add('hidden');
+                allBox.classList.remove('hidden');
+                topBtn.classList.remove('active');
+                allBtn.classList.add('active');
+            }
         }
 
         function editRecord(id) {
@@ -651,22 +721,23 @@
 
             let filtered = masterCasts;
             if(keyword !== '') {
-                filtered = masterCasts.filter(c => c.name.toLowerCase().includes(keyword) || (c.intro && c.intro.toLowerCase().includes(keyword)));
+                filtered = masterCasts.filter(c => c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword)));
             }
 
             if(filtered.length === 0) {
-                container.innerHTML = `<p style="color: #777; font-size: 0.85rem; text-align:center; padding:15px;">該当するキャストがいません（観劇記録に入力すると自動で蓄積されます）。</p>`;
+                container.innerHTML = `<p style="color: #777; font-size: 0.85rem; text-align:center; padding:15px;">該当するキャストがいません。</p>`;
                 return;
             }
 
             let html = '';
             filtered.forEach(c => {
                 html += `
-                    <div class="list-item">
+                    <div class="list-item" onclick="openCastDetail('${c.name}')">
                         <div>
-                            <strong>${c.name}</strong>
-                            <div style="font-size:0.8rem; color:#666; margin-top:2px;">${c.intro || '情報なし'}</div>
+                            <strong>${c.name}</strong> ${c.kana ? '<span style="font-size:0.8rem; color:#777;">('+c.kana+')</span>' : ''}
+                            <div style="font-size:0.8rem; color:#666; margin-top:2px;">${c.intro || '紹介文なし'}</div>
                         </div>
+                        <div style="color: var(--primary-color); font-size: 0.9rem;">詳細 〉</div>
                     </div>
                 `;
             });
@@ -682,6 +753,100 @@
 
         function filterCasts() {
             renderCastsList();
+        }
+
+        function openCastDetail(name) {
+            let cast = masterCasts.find(c => c.name === name);
+            if(!cast) {
+                cast = { name: name, kana: '', birth: '', age: '', joined: '', intro: '' };
+                masterCasts.push(cast);
+            }
+
+            // 登録された観劇歴から、そのキャストの出演履歴を抽出
+            let historyHtml = '';
+            let matchedHistories = [];
+            viewingRecords.forEach(r => {
+                for(let role in r.casts) {
+                    if(r.casts[role] === name) {
+                        matchedHistories.push({
+                            date: r.date,
+                            work: r.work,
+                            role: role
+                        });
+                    }
+                }
+            });
+
+            if(matchedHistories.length === 0) {
+                historyHtml = `<p style="color:#777; font-size:0.85rem;">観劇履歴からの出演データはありません。</p>`;
+            } else {
+                matchedHistories.forEach(h => {
+                    historyHtml += `<div style="font-size:0.85rem; padding:4px 0; border-bottom:1px dashed #eee;">📌 <strong>${h.date}</strong> / ${h.work} （役名: ${h.role}）</div>`;
+                });
+            }
+
+            let body = `
+                <form onsubmit="saveCastDetail(event, '${name}')">
+                    <div class="form-group">
+                        <label>名前</label>
+                        <input type="text" id="edit-cast-name" value="${cast.name || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>ふりがな</label>
+                        <input type="text" id="edit-cast-kana" value="${cast.kana || ''}" placeholder="例：どうぐち みつゆき">
+                    </div>
+                    <div class="form-group">
+                        <label>生年月日</label>
+                        <input type="text" id="edit-cast-birth" value="${cast.birth || ''}" placeholder="例：1971/12/02">
+                    </div>
+                    <div class="form-group">
+                        <label>年齢</label>
+                        <input type="text" id="edit-cast-age" value="${cast.age || ''}" placeholder="例：54歳">
+                    </div>
+                    <div class="form-group">
+                        <label>入団年月</label>
+                        <input type="text" id="edit-cast-joined" value="${cast.joined || ''}" placeholder="例：1996年">
+                    </div>
+                    <div class="form-group">
+                        <label>紹介文</label>
+                        <textarea id="edit-cast-intro" rows="2" placeholder="代表作やメモなど">${cast.intro || ''}</textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top:15px; background:#f9f9f9; padding:10px; border-radius:6px;">
+                        <label style="margin-bottom:6px;">🎭 出演履歴（観劇歴より自動抽出）</label>
+                        <div style="max-height:120px; overflow-y:auto;">
+                            ${historyHtml}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="accent" style="margin-top:10px;">変更を保存する</button>
+                </form>
+            `;
+            openModal('キャスト詳細・編集', body);
+        }
+
+        async function saveCastDetail(e, originalName) {
+            e.preventDefault();
+            const newName = document.getElementById('edit-cast-name').value.trim();
+            const kana = document.getElementById('edit-cast-kana').value.trim();
+            const birth = document.getElementById('edit-cast-birth').value.trim();
+            const age = document.getElementById('edit-cast-age').value.trim();
+            const joined = document.getElementById('edit-cast-joined').value.trim();
+            const intro = document.getElementById('edit-cast-intro').value.trim();
+
+            let target = masterCasts.find(c => c.name === originalName);
+            if(target) {
+                target.name = newName;
+                target.kana = kana;
+                target.birth = birth;
+                target.age = age;
+                target.joined = joined;
+                target.intro = intro;
+            }
+
+            await saveCloudData();
+            closeModal();
+            initApp();
         }
 
         function renderSettingsUI() {
