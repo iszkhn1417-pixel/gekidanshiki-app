@@ -94,8 +94,8 @@
         .item-tag { display: flex; justify-content: space-between; align-items: center; background: #f1f2f6; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; }
         .delete-btn { background: var(--danger-color); color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; cursor: pointer; width: auto; }
 
-        .search-filters { display: flex; gap: 5px; margin-bottom: 10px; }
-        .search-filters button { font-size: 0.8rem; padding: 6px; background: #e0e0e0; color: #333; font-weight: normal; }
+        .search-filters { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+        .search-filters button { font-size: 0.75rem; padding: 6px; background: #e0e0e0; color: #333; font-weight: normal; flex: 1; }
         .search-filters button.active { background: var(--primary-color); color: white; font-weight: bold; }
 
         .cast-input-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; position: relative; }
@@ -197,6 +197,8 @@
                 <div class="search-filters">
                     <button class="active" onclick="setSearchFilter('all', this)">すべて</button>
                     <button onclick="setSearchFilter('name', this)">キャスト名</button>
+                    <button onclick="setSearchFilter('work', this)">作品名</button>
+                    <button onclick="setSearchFilter('role', this)">役名</button>
                 </div>
                 <input type="text" id="search-input" placeholder="フリーワードで検索" oninput="filterCasts()">
             </div>
@@ -698,7 +700,42 @@
 
             let filtered = masterCasts;
             if(keyword !== '') {
-                filtered = masterCasts.filter(c => c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword)));
+                filtered = masterCasts.filter(c => {
+                    if (currentSearchFilter === 'name') {
+                        return c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword));
+                    } else if (currentSearchFilter === 'work') {
+                        // 観劇歴からそのキャストが出演した作品名にキーワードが含まれるかチェック
+                        return viewingRecords.some(r => {
+                            if (!r.work.toLowerCase().includes(keyword)) return false;
+                            return Object.values(r.casts).includes(c.name);
+                        });
+                    } else if (currentSearchFilter === 'role') {
+                        // 観劇歴からそのキャストが演じた役名にキーワードが含まれるかチェック
+                        return viewingRecords.some(r => {
+                            for (let role in r.casts) {
+                                if (r.casts[role] === c.name && role.toLowerCase().includes(keyword)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+                    } else {
+                        // すべて（名前、ふりがな、または出演作品名・役名）
+                        let nameMatch = c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword));
+                        let recordMatch = viewingRecords.some(r => {
+                            if (r.work.toLowerCase().includes(keyword)) {
+                                return Object.values(r.casts).includes(c.name);
+                            }
+                            for (let role in r.casts) {
+                                if (r.casts[role] === c.name && role.toLowerCase().includes(keyword)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+                        return nameMatch || recordMatch;
+                    }
+                });
             }
 
             if(filtered.length === 0) {
