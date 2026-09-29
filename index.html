@@ -87,7 +87,7 @@
         .nav-item.active { color: #1b263b; font-weight: bold; }
         .nav-item div { font-size: 1.2rem; margin-bottom: 2px; }
 
-        .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .list-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
         .detail-box { background: #fafbfc; border-left: 4px solid var(--accent-color); padding: 12px; margin-top: 8px; font-size: 0.9rem; border-radius: 0 6px 6px 0; }
         
         .item-tag-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -704,13 +704,11 @@
                     if (currentSearchFilter === 'name') {
                         return c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword));
                     } else if (currentSearchFilter === 'work') {
-                        // 観劇歴からそのキャストが出演した作品名にキーワードが含まれるかチェック
                         return viewingRecords.some(r => {
                             if (!r.work.toLowerCase().includes(keyword)) return false;
                             return Object.values(r.casts).includes(c.name);
                         });
                     } else if (currentSearchFilter === 'role') {
-                        // 観劇歴からそのキャストが演じた役名にキーワードが含まれるかチェック
                         return viewingRecords.some(r => {
                             for (let role in r.casts) {
                                 if (r.casts[role] === c.name && role.toLowerCase().includes(keyword)) {
@@ -720,7 +718,6 @@
                             return false;
                         });
                     } else {
-                        // すべて（名前、ふりがな、または出演作品名・役名）
                         let nameMatch = c.name.toLowerCase().includes(keyword) || (c.kana && c.kana.toLowerCase().includes(keyword));
                         let recordMatch = viewingRecords.some(r => {
                             if (r.work.toLowerCase().includes(keyword)) {
@@ -746,12 +743,15 @@
             let html = '';
             filtered.forEach(c => {
                 html += `
-                    <div class="list-item" onclick="openCastDetail('${c.name}')">
-                        <div>
+                    <div class="list-item">
+                        <div onclick="openCastDetail('${c.name}')" style="flex: 1; cursor: pointer;">
                             <strong>${c.name}</strong> ${c.kana ? '<span style="font-size:0.8rem; color:#777;">('+c.kana+')</span>' : ''}
                             <div style="font-size:0.8rem; color:#666; margin-top:2px;">${c.intro || '紹介文なし'}</div>
                         </div>
-                        <div style="color: var(--primary-color); font-size: 0.9rem;">詳細 〉</div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <button class="small" onclick="openCastDetail('${c.name}')" style="background:var(--primary-color);">詳細</button>
+                            <button class="small delete-btn" onclick="deleteCast('${c.name}')">削除</button>
+                        </div>
                     </div>
                 `;
             });
@@ -776,7 +776,6 @@
                 masterCasts.push(cast);
             }
 
-            // 登録された観劇歴から、そのキャストの出演履歴を抽出
             let historyHtml = '';
             let matchedHistories = [];
             viewingRecords.forEach(r => {
@@ -833,7 +832,10 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="accent" style="margin-top:10px;">変更を保存する</button>
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button type="submit" class="accent" style="flex: 1;">変更を保存する</button>
+                        <button type="button" onclick="deleteCastModal('${name}')" style="background: var(--danger-color); flex: 1;">このキャストを削除</button>
+                    </div>
                 </form>
             `;
             openModal('キャスト詳細・編集', body);
@@ -858,6 +860,21 @@
                 target.intro = intro;
             }
 
+            await saveCloudData();
+            closeModal();
+            initApp();
+        }
+
+        async function deleteCast(name) {
+            if(!confirm(`キャスト「${name}」を削除しますか？`)) return;
+            masterCasts = masterCasts.filter(c => c.name !== name);
+            await saveCloudData();
+            initApp();
+        }
+
+        async function deleteCastModal(name) {
+            if(!confirm(`キャスト「${name}」を削除しますか？`)) return;
+            masterCasts = masterCasts.filter(c => c.name !== name);
             await saveCloudData();
             closeModal();
             initApp();
