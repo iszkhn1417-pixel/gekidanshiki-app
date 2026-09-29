@@ -109,9 +109,6 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: #777; cursor: pointer; width: auto; padding: 0; }
         
-        .tab-container { display: flex; gap: 5px; margin-top: 8px; margin-bottom: 8px; }
-        .tab-btn { background: #e0e0e0; color: #333; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; border: none; cursor: pointer; width: auto; font-weight: normal; }
-        .tab-btn.active { background: var(--primary-color); color: white; font-weight: bold; }
         .clickable-cast { color: var(--primary-color); text-decoration: underline; cursor: pointer; }
     </style>
 </head>
@@ -180,7 +177,7 @@
         <div id="screen-works" class="screen hidden">
             <div class="card">
                 <h3 style="color: var(--primary-color); margin-bottom: 10px;">📊 作品別 観劇サマリー</h3>
-                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">劇場観劇と配信視聴が別々に集計されます。タップして詳細を確認できます。</p>
+                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">劇場観劇と配信視聴が別々に集計されます。タップして過去の観劇日一覧を確認できます。</p>
                 <div id="works-summary-list"></div>
             </div>
         </div>
@@ -189,7 +186,7 @@
         <div id="screen-timeline" class="screen hidden">
             <div class="card">
                 <h3 style="color: var(--primary-color); margin-bottom: 10px;">📅 時系列観劇歴</h3>
-                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">観劇した順に一覧表示されます。タップすると編集や削除が可能です。</p>
+                <p style="font-size: 0.8rem; color: #666; margin-bottom: 10px;">観劇した順に一覧表示されます。「詳細」ボタンからキャストや同行者を確認できます。</p>
                 <div id="timeline-list-container"></div>
             </div>
         </div>
@@ -579,24 +576,22 @@
 
         function showWorkDetail(workName) {
             const matched = viewingRecords.filter(r => r.work === workName);
-            let body = `<p><strong>${workName}</strong> の観劇履歴（全${matched.length}件）</p><hr style="margin:10px 0;">`;
+            let body = `<p><strong>${workName}</strong> の観劇履歴一覧（全${matched.length}件）</p><hr style="margin:10px 0;">`;
             if(matched.length === 0) {
                 body += `<p style="color:#777;">まだ観劇記録がありません。</p>`;
             } else {
                 matched.forEach(r => {
-                    let castSummary = [];
-                    for(let role in r.casts) {
-                        castSummary.push(`${role}: ${r.casts[role]}`);
-                    }
                     body += `
-                        <div style="margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #eee; font-size:0.9rem;">
-                            <strong>${r.date}</strong> (${r.theater}) ${r.companion ? '/ 同行者: '+r.companion : ''}
-                            <div style="font-size:0.8rem; color:#555; margin-top:4px;">${castSummary.join(' / ')}</div>
+                        <div class="list-item" style="padding: 8px 0;">
+                            <div>
+                                <strong>${r.date}</strong> <span style="font-size:0.85rem; color:#555;">(${r.theater})</span>
+                            </div>
+                            <button class="small" onclick="openRecordDetailModal('${r.id}')" style="background:var(--primary-color);">詳細を見る</button>
                         </div>
                     `;
                 });
             }
-            openModal(workName + ' の詳細', body);
+            openModal(workName + ' の観劇日一覧', body);
         }
 
         function renderTimeline() {
@@ -609,44 +604,20 @@
             }
 
             let html = '';
-            viewingRecords.forEach((r, index) => {
-                let roles = Object.keys(r.casts);
-                let topRoles = roles.slice(0, 3);
-                
-                let topCastHtml = '';
-                topRoles.forEach(role => {
-                    topCastHtml += `<div><span style="color:#666;">${role}:</span> <strong class="clickable-cast" onclick="openCastDetail('${r.casts[role]}')">${r.casts[role]}</strong></div>`;
-                });
-
-                let allCastHtml = '';
-                for(let role in r.casts) {
-                    allCastHtml += `<div><span style="color:#666;">${role}:</span> <strong class="clickable-cast" onclick="openCastDetail('${r.casts[role]}')">${r.casts[role]}</strong></div>`;
-                }
-
+            viewingRecords.forEach((r) => {
                 html += `
                     <div class="card" style="border-left: 4px solid var(--primary-color); margin-bottom:10px; position:relative;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                             <div>
                                 <span style="font-size:0.75rem; background:#eef2f7; padding:2px 6px; border-radius:4px; font-weight:bold; color:var(--primary-color);">${r.date}</span>
                                 <h4 style="margin-top:6px; color:var(--primary-color);">${r.work}</h4>
-                                <div style="font-size:0.85rem; color:#555; margin-top:2px;">📍 ${r.theater} ${r.companion ? ' / 同行者: '+r.companion : ''}</div>
+                                <div style="font-size:0.85rem; color:#555; margin-top:2px;">📍 ${r.theater}</div>
                             </div>
-                            <div>
-                                <button class="small" onclick="editRecord('${r.id}')" style="background:#2980b9; margin-right:4px;">編集</button>
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                <button class="small" onclick="openRecordDetailModal('${r.id}')" style="background:#27ae60;">詳細</button>
+                                <button class="small" onclick="editRecord('${r.id}')" style="background:#2980b9;">編集</button>
                                 <button class="small delete-btn" onclick="deleteRecord('${r.id}')">削除</button>
                             </div>
-                        </div>
-
-                        <div class="tab-container">
-                            <button class="tab-btn active" id="tab-top-${index}" onclick="switchTimelineTab(${index}, 'top')">主要キャスト</button>
-                            <button class="tab-btn" id="tab-all-${index}" onclick="switchTimelineTab(${index}, 'all')">キャスト全体 (${roles.length})</button>
-                        </div>
-
-                        <div id="cast-view-top-${index}" class="detail-box">
-                            ${topCastHtml || '<span style="color:#777;">キャスト登録なし</span>'}
-                        </div>
-                        <div id="cast-view-all-${index}" class="detail-box hidden">
-                            ${allCastHtml || '<span style="color:#777;">キャスト登録なし</span>'}
                         </div>
                     </div>
                 `;
@@ -654,23 +625,29 @@
             container.innerHTML = html;
         }
 
-        function switchTimelineTab(index, mode) {
-            const topBox = document.getElementById(`cast-view-top-${index}`);
-            const allBox = document.getElementById(`cast-view-all-${index}`);
-            const topBtn = document.getElementById(`tab-top-${index}`);
-            const allBtn = document.getElementById(`tab-all-${index}`);
+        function openRecordDetailModal(recordId) {
+            const r = viewingRecords.find(item => item.id === recordId);
+            if(!r) return;
 
-            if(mode === 'top') {
-                topBox.classList.remove('hidden');
-                allBox.classList.add('hidden');
-                topBtn.classList.add('active');
-                allBtn.classList.remove('active');
-            } else {
-                topBox.classList.add('hidden');
-                allBox.classList.remove('hidden');
-                topBtn.classList.remove('active');
-                allBtn.classList.add('active');
+            let castHtml = '';
+            for(let role in r.casts) {
+                castHtml += `<div style="padding:4px 0; border-bottom:1px solid #eee;"><span style="color:#666;">${role}:</span> <strong class="clickable-cast" onclick="openCastDetail('${r.casts[role]}')">${r.casts[role]}</strong></div>`;
             }
+
+            let body = `
+                <div style="font-size:0.95rem; line-height:1.6;">
+                    <p style="margin-bottom:6px;"><strong>観劇日：</strong> ${r.date}</p>
+                    <p style="margin-bottom:6px;"><strong>作品名：</strong> ${r.work}</p>
+                    <p style="margin-bottom:6px;"><strong>劇場名：</strong> ${r.theater}</p>
+                    <p style="margin-bottom:12px;"><strong>同行者：</strong> ${r.companion ? r.companion : 'なし'}</p>
+                    <hr style="margin:10px 0;">
+                    <label style="margin-bottom:6px;">🎭 キャスト情報</label>
+                    <div style="max-height:200px; overflow-y:auto; background:#fafafa; padding:8px; border-radius:6px; border:1px solid #eee;">
+                        ${castHtml || '<span style="color:#777;">キャスト登録なし</span>'}
+                    </div>
+                </div>
+            `;
+            openModal(r.work + ' （' + r.date + '）の詳細', body);
         }
 
         function editRecord(id) {
